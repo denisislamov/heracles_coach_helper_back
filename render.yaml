@@ -4,7 +4,7 @@ services:
     name: zhiromer
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install --timeout 120 --retries 10 -r requirements.txt
     startCommand: python main.py
     # healthCheckPath не задаём: Render проверит, что процесс слушает порт.
     envVars:

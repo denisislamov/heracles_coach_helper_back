@@ -42,14 +42,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await db.get_user(u.id)
     reports.schedule_user(context.application, user)
     await update.message.reply_text(WELCOME, parse_mode="Markdown")
-    if not user["goal"]:
-        context.user_data["awaiting"] = "goal"
+    # Всегда запускаем шаг с целью.
+    context.user_data["awaiting"] = "goal"
+    if user["goal"]:
+        await update.message.reply_text(
+            f"🎯 Твоя текущая цель: *{user['goal']} ккал/день*.\n"
+            "Пришли новое число, чтобы изменить, или оставь текущую.",
+            parse_mode="Markdown",
+            reply_markup=kb.keep_goal(user["goal"]),
+        )
+    else:
         await update.message.reply_text(
             "🎯 Для начала укажи *цель по калориям на день* (число, напр. 2000):",
             parse_mode="Markdown",
         )
-    else:
-        await update.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
 
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -173,7 +179,13 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     user = await db.get_user(uid)
 
-    if data == "menu":
+    if data == "keep_goal":
+        context.user_data.pop("awaiting", None)
+        await q.edit_message_text(
+            f"🎯 Оставил цель: *{user['goal']} ккал/день*.", parse_mode="Markdown")
+        await q.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
+
+    elif data == "menu":
         await q.edit_message_text("Главное меню:", reply_markup=kb.main_menu())
 
     elif data == "today":

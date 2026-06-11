@@ -56,5 +56,11 @@ def tz_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
+def keep_goal(goal: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"✅ Оставить {goal} ккал", callback_data="keep_goal")],
+    ])
+
+
 def back_to_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ В меню", callback_data="menu")]])

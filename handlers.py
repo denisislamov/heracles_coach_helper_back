@@ -1,5 +1,6 @@
 """Хендлеры Telegram: онбординг, приём еды (фото/текст/число), меню, настройки."""
 import datetime as dt
+import logging
 import re
 
 import pytz
@@ -11,6 +12,8 @@ import ai
 import db
 import keyboards as kb
 import reports
+
+log = logging.getLogger("calbot.handlers")
 
 # Текст-«число калорий»: «350», «+200», «350 ккал»
 _NUM_RE = re.compile(r"^\+?\s*(\d{1,5})\s*(ккал|kcal|кал|cal)?$", re.IGNORECASE)
@@ -102,7 +105,8 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = update.message.caption
     try:
         result = await ai.estimate_food(image_bytes=img_bytes, caption=caption)
-    except Exception:
+    except Exception as e:
+        log.exception("Ошибка распознавания фото: %s", e)
         await update.message.reply_text(
             "Не удалось распознать фото 😕 Попробуй ещё раз или пришли описание текстом.")
         return
@@ -149,7 +153,8 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
     try:
         result = await ai.estimate_food(caption=text)
-    except Exception:
+    except Exception as e:
+        log.exception("Ошибка оценки по тексту: %s", e)
         await update.message.reply_text("Не получилось оценить 😕 Попробуй иначе или пришли фото.")
         return
     item = ", ".join(i.get("name", "") for i in result.get("items", [])) or text[:50]

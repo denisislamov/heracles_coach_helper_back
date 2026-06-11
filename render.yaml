@@ -8,6 +8,8 @@ services:
     startCommand: python main.py
     # healthCheckPath не задаём: Render проверит, что процесс слушает порт.
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"        # 3.14 ломает сборку asyncpg
       - key: BOT_TOKEN
         sync: false            # задать вручную в дашборде
       - key: OPENAI_API_KEY

@@ -18,11 +18,7 @@ services:
         value: gpt-4o
       - key: RUN_MODE
         value: webhook
-      - key: WEBHOOK_URL
-        fromService:
-          type: web
-          name: zhiromer
-          property: host        # даёт хост вида zhiromer.onrender.com
+      # WEBHOOK_URL не задаём: код сам берёт RENDER_EXTERNAL_URL (живой адрес сервиса).
       - key: DATABASE_URL
         fromDatabase:
           name: zhiromer-db

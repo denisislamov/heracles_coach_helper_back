@@ -23,7 +23,9 @@ DATABASE_URL = _req("DATABASE_URL")
 # Render автоматически прокидывает PORT и RENDER_EXTERNAL_URL.
 PORT = int(os.environ.get("PORT", "10000"))
 # Публичный URL сервиса, напр. https://my-bot.onrender.com
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL") or os.environ.get("RENDER_EXTERNAL_URL")
+# На Render всегда верно выставлен RENDER_EXTERNAL_URL — берём его в первую
+# очередь, чтобы не зависеть от вручную заданного (и возможно неверного) значения.
+WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("WEBHOOK_URL")
 # Telegram требует https. Если задан только хост — добавим схему.
 if WEBHOOK_URL and not WEBHOOK_URL.startswith(("http://", "https://")):
     WEBHOOK_URL = "https://" + WEBHOOK_URL

@@ -1,0 +1,39 @@
+# Render Blueprint. В Render: New → Blueprint → выбрать репозиторий.
+services:
+  - type: web
+    name: zhiromer
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    # healthCheckPath не задаём: Render проверит, что процесс слушает порт.
+    envVars:
+      - key: BOT_TOKEN
+        sync: false            # задать вручную в дашборде
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o
+      - key: RUN_MODE
+        value: webhook
+      - key: WEBHOOK_URL
+        fromService:
+          type: web
+          name: zhiromer
+          property: host        # даёт хост вида zhiromer.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: zhiromer-db
+          property: connectionString
+      - key: DEFAULT_TIMEZONE
+        value: Europe/Moscow
+      - key: DEFAULT_DAILY_HOUR
+        value: "21"
+      - key: DEFAULT_WEEKLY_DOW
+        value: "6"
+
+databases:
+  - name: zhiromer-db
+    plan: free
+    databaseName: calorie_bot
+    user: calorie_bot

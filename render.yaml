@@ -16,6 +16,8 @@ services:
         sync: false
       - key: OPENAI_MODEL
         value: gpt-4o
+      - key: OPENAI_MODEL_FREE
+        value: gpt-4o-mini      # дешёвая модель для бесплатного тира
       - key: RUN_MODE
         value: webhook
       # WEBHOOK_URL не задаём: код сам берёт RENDER_EXTERNAL_URL (живой адрес сервиса).
@@ -35,13 +37,19 @@ services:
       - key: FREE_DAILY_AI
         value: "5"
       - key: SUBSCRIPTION_PRICE_STARS
-        value: "250"
+        value: "300"
       - key: SUBSCRIPTION_DAYS
         value: "30"
+      - key: TRIAL_DAYS
+        value: "3"             # дней безлимита новым (0 = выкл)
+      - key: CREDIT_PACKS
+        value: "50:70,200:220" # пакеты «кредитов:звёзд»
+      - key: BYOK_ENCRYPTION_KEY
+        sync: false            # Fernet-ключ для своих ключей юзеров (пусто = BYOK выкл)
       - key: SUPPORT_CONTACT
         sync: false            # укажи свой контакт поддержки
       - key: ADMIN_IDS
-        sync: false            # твой Telegram user_id (для /addpromo)
+        sync: false            # твой Telegram user_id (для /addpromo, /refund, /stats)
       - key: TELEGRAM_TEST_ENV
         value: "0"             # в проде всегда 0
 

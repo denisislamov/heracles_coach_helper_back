@@ -11,12 +11,14 @@ import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
 from telegram.ext import ContextTypes
 
+import byok
 import config
 import db
 
 log = logging.getLogger("calbot.payments")
 
 PREMIUM_PAYLOAD = "premium_sub"
+PACK_PREFIX = "credits:"   # payload пакета кредитов: "credits:<n>"
 
 
 # ----------------------------------------------------------------- access-гейт
@@ -34,7 +36,11 @@ def free_used(user, today: dt.date) -> int:
 
 
 def access_mode(user, today: dt.date) -> str:
-    """Каким способом пройдёт следующий ИИ-анализ: unlimited | premium | credit | free | blocked."""
+    """Каким способом пройдёт следующий ИИ-анализ:
+    byok | unlimited | premium | credit | free | blocked."""
+    # Свой ключ OpenAI — всегда безлимит и за счёт пользователя.
+    if byok.enabled() and user.get("openai_key_enc"):
+        return "byok"
     if not config.MONETIZATION_ENABLED:
         return "unlimited"
     if is_premium(user):
@@ -47,11 +53,20 @@ def access_mode(user, today: dt.date) -> str:
 
 
 async def consume(user_id: int, mode: str, today: dt.date) -> None:
-    """Списать ресурс ПОСЛЕ успешного анализа (premium — бесплатно)."""
+    """Списать ресурс ПОСЛЕ успешного анализа (premium/byok/unlimited — бесплатно)."""
     if mode == "credit":
         await db.consume_credit(user_id)
     elif mode == "free":
         await db.bump_free_usage(user_id, today)
+
+
+def ai_params(user, mode: str):
+    """(model, api_key) для ai.estimate_food в зависимости от режима доступа."""
+    if mode == "byok":
+        return config.OPENAI_MODEL, byok.decrypt(user.get("openai_key_enc"))
+    if mode == "free":
+        return config.OPENAI_MODEL_FREE, None
+    return config.OPENAI_MODEL, None   # premium | credit | unlimited
 
 
 def remaining_text(user, today: dt.date) -> str:
@@ -65,11 +80,13 @@ def remaining_text(user, today: dt.date) -> str:
 
 
 def paywall_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(
-            f"⭐ Premium — {config.SUBSCRIPTION_PRICE_STARS}★/мес", callback_data="buy_premium")],
-        [InlineKeyboardButton("🎟 Ввести промокод", callback_data="enter_promo")],
-    ])
+    rows = [[InlineKeyboardButton(
+        f"⭐ Premium — {config.SUBSCRIPTION_PRICE_STARS}★/мес", callback_data="buy_premium")]]
+    for credits, stars in config.CREDIT_PACKS:
+        rows.append([InlineKeyboardButton(
+            f"📦 {credits} анализов — {stars}★", callback_data=f"buy_pack:{credits}")])
+    rows.append([InlineKeyboardButton("🎟 Ввести промокод", callback_data="enter_promo")])
+    return InlineKeyboardMarkup(rows)
 
 
 async def send_paywall(update: Update) -> None:
@@ -87,21 +104,43 @@ async def send_paywall(update: Update) -> None:
 # --------------------------------------------------------------- инвойс/оплата
 
 async def send_premium_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Нативная продлеваемая подписка Telegram Stars (Telegram сам списывает каждые 30 дней)."""
+    link = await context.bot.create_invoice_link(
+        title="Premium (автопродление)",
+        description="Безлимитные ИИ-анализы калорий по фото и описанию. "
+                    "Списывается раз в 30 дней, отменить можно в любой момент.",
+        payload=PREMIUM_PAYLOAD,
+        currency="XTR",
+        prices=[LabeledPrice(label="Premium / мес", amount=config.SUBSCRIPTION_PRICE_STARS)],
+        subscription_period=config.SUBSCRIPTION_PERIOD_SEC,  # ровно 30 дней
+    )
+    await context.bot.send_message(
+        chat_id,
+        f"⭐ *Premium* — {config.SUBSCRIPTION_PRICE_STARS}★ в месяц, автопродление.\n"
+        "Отменить можно в Telegram → Настройки → Подписки или командой /cancelsub.",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
+            f"Оформить за {config.SUBSCRIPTION_PRICE_STARS}★/мес", url=link)]]),
+    )
+
+
+async def send_pack_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE,
+                            credits: int, stars: int) -> None:
+    """Разовый пакет анализов (без автопродления)."""
     await context.bot.send_invoice(
         chat_id=chat_id,
-        title=f"Premium — {config.SUBSCRIPTION_DAYS} дней",
-        description="Безлимитные ИИ-анализы калорий по фото и описанию, без дневных ограничений.",
-        payload=PREMIUM_PAYLOAD,
-        currency="XTR",  # Telegram Stars
-        prices=[LabeledPrice(label=f"Premium {config.SUBSCRIPTION_DAYS} дн.",
-                             amount=config.SUBSCRIPTION_PRICE_STARS)],
-        # provider_token не нужен для цифровых товаров (оплата звёздами).
+        title=f"Пакет {credits} анализов",
+        description=f"{credits} ИИ-анализов еды. Не сгорают по времени, тратятся "
+                    "после бесплатного дневного лимита.",
+        payload=f"{PACK_PREFIX}{credits}",
+        currency="XTR",
+        prices=[LabeledPrice(label=f"{credits} анализов", amount=stars)],
     )
 
 
 async def on_pre_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.pre_checkout_query
-    if q.invoice_payload == PREMIUM_PAYLOAD:
+    if q.invoice_payload == PREMIUM_PAYLOAD or q.invoice_payload.startswith(PACK_PREFIX):
         await q.answer(ok=True)
     else:
         await q.answer(ok=False, error_message="Неизвестный товар, оплата отменена.")
@@ -110,19 +149,41 @@ async def on_pre_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def on_successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     sp = update.message.successful_payment
     uid = update.effective_user.id
-    log.info("Оплата получена: user=%s payload=%s charge=%s amount=%s",
-             uid, sp.invoice_payload, sp.telegram_payment_charge_id, sp.total_amount)
-    try:
-        await db.record_payment(uid, sp.invoice_payload, sp.total_amount,
-                                sp.telegram_payment_charge_id)
-    except Exception:
-        log.exception("Не удалось записать платёж в БД")
-    if sp.invoice_payload == PREMIUM_PAYLOAD:
-        await db.grant_premium_days(uid, config.SUBSCRIPTION_DAYS)
+    payload = sp.invoice_payload
+    charge_id = sp.telegram_payment_charge_id
+    log.info("Оплата: user=%s payload=%s charge=%s amount=%s recurring=%s",
+             uid, payload, charge_id, sp.total_amount, getattr(sp, "is_recurring", None))
+
+    # идемпотентность: один charge_id обрабатываем один раз
+    is_new = await db.record_payment(uid, payload, sp.total_amount, charge_id)
+    if not is_new:
+        return
+
+    if payload == PREMIUM_PAYLOAD:
+        exp = getattr(sp, "subscription_expiration_date", None)
+        if exp:
+            await db.set_premium_until(uid, exp)
+        else:
+            await db.grant_premium_days(uid, config.SUBSCRIPTION_DAYS)
+        # запоминаем charge_id первого платежа (нужен для отмены)
         user = await db.get_user(uid)
-        until = user["premium_until"].strftime("%d.%m.%Y")
+        if getattr(sp, "is_first_recurring", False) or not user["sub_charge_id"]:
+            await db.set_sub_charge_id(uid, charge_id)
+        user = await db.get_user(uid)
+        until = user["premium_until"].strftime("%d.%m.%Y") if user["premium_until"] else "—"
+        if getattr(sp, "is_recurring", False) and not getattr(sp, "is_first_recurring", False):
+            await update.message.reply_text(
+                f"🔄 Подписка продлена. Premium активен до *{until}*.", parse_mode="Markdown")
+        else:
+            await update.message.reply_text(
+                f"✅ Спасибо! *Premium* активен до *{until}* (автопродление). "
+                "Анализы без лимита 🎉", parse_mode="Markdown")
+
+    elif payload.startswith(PACK_PREFIX):
+        n = int(payload[len(PACK_PREFIX):])
+        await db.add_credits(uid, n)
         await update.message.reply_text(
-            f"✅ Спасибо! *Premium* активен до *{until}*. Анализы теперь без лимита 🎉",
+            f"✅ Спасибо! Начислено *{n}* анализов. Тратятся после дневного лимита.",
             parse_mode="Markdown")
 
 
@@ -139,15 +200,105 @@ async def premium_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if is_premium(user):
         until = user["premium_until"].strftime("%d.%m.%Y")
         await update.message.reply_text(
-            f"⭐ Premium активен до *{until}*.", parse_mode="Markdown")
+            f"⭐ Premium активен до *{until}* (автопродление).\n"
+            "Отменить автосписание — /cancelsub.", parse_mode="Markdown")
         return
     await update.message.reply_text(
         f"{remaining_text(user, today)}\n\n"
-        f"*Premium* — {config.SUBSCRIPTION_PRICE_STARS}★ на {config.SUBSCRIPTION_DAYS} дней, "
-        "безлимитные ИИ-анализы.",
+        f"*Premium* — {config.SUBSCRIPTION_PRICE_STARS}★/мес (автопродление), безлимитные "
+        "ИИ-анализы. Или разовый пакет анализов.",
         parse_mode="Markdown",
         reply_markup=paywall_keyboard(),
     )
+
+
+async def cancelsub_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    uid = update.effective_user.id
+    user = await db.get_user(uid)
+    if not user or not user["sub_charge_id"]:
+        await update.message.reply_text("Активной автоподписки нет.")
+        return
+    try:
+        await context.bot.edit_user_star_subscription(
+            user_id=uid, telegram_payment_charge_id=user["sub_charge_id"], is_canceled=True)
+        await update.message.reply_text(
+            "✅ Автопродление отменено. Premium действует до конца оплаченного периода.")
+    except Exception as e:
+        log.exception("cancelsub: %s", e)
+        await update.message.reply_text(
+            "Не получилось отменить через бота. Открой Telegram → Настройки → Подписки.")
+
+
+async def refund_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id not in config.ADMIN_IDS:
+        await update.message.reply_text("Команда только для администратора.")
+        return
+    if len(context.args) < 2:
+        await update.message.reply_text("Формат: /refund <user_id> <charge_id>")
+        return
+    try:
+        target = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("user_id должен быть числом.")
+        return
+    charge = context.args[1]
+    try:
+        await context.bot.refund_star_payment(
+            user_id=target, telegram_payment_charge_id=charge)
+    except Exception as e:
+        await update.message.reply_text(f"Возврат не выполнен: {e}")
+        return
+    await db.mark_refunded(charge)
+    p = await db.get_payment(charge)
+    if p and p["payload"] == PREMIUM_PAYLOAD:
+        await db.revoke_premium(target)
+    await update.message.reply_text(f"✅ Возврат по {charge} выполнен (user {target}).")
+
+
+async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id not in config.ADMIN_IDS:
+        await update.message.reply_text("Команда только для администратора.")
+        return
+    s = await db.admin_stats()
+    usd = round(s["stars_30d"] * 0.013, 2)
+    await update.message.reply_text(
+        "📈 *Статистика*\n"
+        f"Пользователей всего: {s['total_users']}\n"
+        f"Новых за 7 дней: {s['new_7d']}\n"
+        f"Активных Premium: {s['premium_active']}\n"
+        f"Платежей за 30 дней: {s['payments_30d']}\n"
+        f"Выручка за 30 дней: {s['stars_30d']}★ (≈ ${usd})\n"
+        f"Активаций промокодов: {s['promo_redemptions']}",
+        parse_mode="Markdown")
+
+
+async def setkey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not byok.enabled():
+        await update.message.reply_text("Свой ключ сейчас не поддерживается.")
+        return
+    await db.ensure_user(update.effective_user.id, update.effective_user.username)
+    if not context.args:
+        await update.message.reply_text("Использование: /setkey sk-...")
+        return
+    key = context.args[0].strip()
+    # сразу удаляем сообщение с ключом из чата
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+    notice = await context.bot.send_message(update.effective_chat.id, "Проверяю ключ…")
+    if not await byok.validate_key(key):
+        await notice.edit_text("❌ Ключ не прошёл проверку. Убедись, что он рабочий.")
+        return
+    await db.set_openai_key(update.effective_user.id, byok.encrypt(key))
+    await notice.edit_text(
+        "✅ Ключ сохранён (шифрованно). Анализы теперь безлимитны и за твой счёт OpenAI.\n"
+        "Удалить ключ — /delkey.")
+
+
+async def delkey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await db.clear_openai_key(update.effective_user.id)
+    await update.message.reply_text("Ключ удалён. Бот снова работает на общих условиях.")
 
 
 async def apply_promo(update: Update, context: ContextTypes.DEFAULT_TYPE, code: str) -> None:

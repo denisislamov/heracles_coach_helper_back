@@ -86,15 +86,23 @@ CREATE TABLE IF NOT EXISTS calorie_feedback (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Учёт платежей (для аналитики выручки).
+-- Учёт платежей (для аналитики выручки и возвратов).
 CREATE TABLE IF NOT EXISTS payments (
     id           BIGSERIAL PRIMARY KEY,
     user_id      BIGINT,
     payload      TEXT,
     amount_stars INTEGER NOT NULL,
     charge_id    TEXT,
+    is_refunded  BOOLEAN NOT NULL DEFAULT FALSE,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_refunded BOOLEAN NOT NULL DEFAULT FALSE;
+-- Идемпотентность доставки платежей: один charge_id — одна запись.
+CREATE UNIQUE INDEX IF NOT EXISTS payments_charge_id_uniq ON payments(charge_id);
+
+-- Подписка: id первого платежа (для отмены) и ключ OpenAI пользователя (BYOK, шифрованный).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sub_charge_id  TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS openai_key_enc TEXT;
 
 -- Утверждённые правки калорийности (на будущее — для уточнения распознавания).
 CREATE TABLE IF NOT EXISTS food_corrections (
@@ -126,16 +134,21 @@ async def close() -> None:
 
 # ---------------------------------------------------------------- пользователи
 
-async def ensure_user(user_id: int, username: str = None) -> None:
-    """Зарегистрировать пользователя, если его ещё нет."""
+async def ensure_user(user_id: int, username: str = None) -> bool:
+    """Зарегистрировать пользователя, если его ещё нет.
+
+    Возвращает True, если пользователь только что создан (для выдачи триала).
+    """
     async with _pool.acquire() as conn:
-        await conn.execute(
+        row = await conn.fetchrow(
             """INSERT INTO users (user_id, username, timezone, daily_hour, weekly_dow)
                VALUES ($1, $2, $3, $4, $5)
-               ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username""",
+               ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username
+               RETURNING (xmax = 0) AS inserted""",
             user_id, username, config.DEFAULT_TIMEZONE,
             config.DEFAULT_DAILY_HOUR, config.DEFAULT_WEEKLY_DOW,
         )
+        return bool(row["inserted"])
 
 
 async def get_user(user_id: int) -> Optional[asyncpg.Record]:
@@ -350,10 +363,71 @@ async def add_calorie_feedback(user_id, username, dish, correct_kcal,
         )
 
 
-async def record_payment(user_id, payload, amount_stars, charge_id) -> None:
+async def record_payment(user_id, payload, amount_stars, charge_id) -> bool:
+    """Сохранить платёж идемпотентно. True — если запись новая (не дубль доставки)."""
     async with _pool.acquire() as conn:
-        await conn.execute(
+        row = await conn.fetchrow(
             """INSERT INTO payments (user_id, payload, amount_stars, charge_id)
-               VALUES ($1, $2, $3, $4)""",
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (charge_id) DO NOTHING RETURNING id""",
             user_id, payload, amount_stars, charge_id,
         )
+        return row is not None
+
+
+async def get_payment(charge_id: str) -> Optional[asyncpg.Record]:
+    async with _pool.acquire() as conn:
+        return await conn.fetchrow("SELECT * FROM payments WHERE charge_id=$1", charge_id)
+
+
+async def mark_refunded(charge_id: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE payments SET is_refunded=TRUE WHERE charge_id=$1", charge_id)
+
+
+# ----------------------------------------------------- подписка / Premium / BYOK
+
+async def set_premium_until(user_id: int, until) -> None:
+    """Установить точную дату окончания Premium (для нативной подписки)."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET premium_until=$2 WHERE user_id=$1", user_id, until)
+
+
+async def set_sub_charge_id(user_id: int, charge_id: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET sub_charge_id=$2 WHERE user_id=$1", user_id, charge_id)
+
+
+async def revoke_premium(user_id: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET premium_until=now() WHERE user_id=$1", user_id)
+
+
+async def set_openai_key(user_id: int, enc: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET openai_key_enc=$2 WHERE user_id=$1", user_id, enc)
+
+
+async def clear_openai_key(user_id: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET openai_key_enc=NULL WHERE user_id=$1", user_id)
+
+
+async def admin_stats() -> dict:
+    """Сводка для /stats."""
+    async with _pool.acquire() as conn:
+        return dict(await conn.fetchrow(
+            """SELECT
+                 (SELECT count(*) FROM users) AS total_users,
+                 (SELECT count(*) FROM users WHERE created_at >= now() - interval '7 days') AS new_7d,
+                 (SELECT count(*) FROM users WHERE premium_until > now()) AS premium_active,
+                 (SELECT count(*) FROM payments WHERE created_at >= now() - interval '30 days' AND NOT is_refunded) AS payments_30d,
+                 (SELECT COALESCE(SUM(amount_stars),0) FROM payments WHERE created_at >= now() - interval '30 days' AND NOT is_refunded) AS stars_30d,
+                 (SELECT count(*) FROM redemptions) AS promo_redemptions
+            """))

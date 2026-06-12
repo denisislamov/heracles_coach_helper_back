@@ -15,6 +15,8 @@ BOT_TOKEN = _req("BOT_TOKEN")
 # --- OpenAI ---
 OPENAI_API_KEY = _req("OPENAI_API_KEY")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
+# Дешёвая модель для бесплатного тира (снижает себестоимость, см. МОНЕТИЗАЦИЯ.md §9).
+OPENAI_MODEL_FREE = os.environ.get("OPENAI_MODEL_FREE", "gpt-4o-mini")
 
 # --- База данных ---
 DATABASE_URL = _req("DATABASE_URL")
@@ -47,11 +49,35 @@ MONETIZATION_ENABLED = os.environ.get("MONETIZATION_ENABLED", "1").lower() in ("
 # Сколько ИИ-анализов в день бесплатно (до пэйвола).
 FREE_DAILY_AI = int(os.environ.get("FREE_DAILY_AI", "5"))
 # Цена месячной подписки Premium в звёздах (валюта XTR). 1 ⭐ ≈ пара центов.
-SUBSCRIPTION_PRICE_STARS = int(os.environ.get("SUBSCRIPTION_PRICE_STARS", "250"))
-# Длительность подписки в днях.
+SUBSCRIPTION_PRICE_STARS = int(os.environ.get("SUBSCRIPTION_PRICE_STARS", "300"))
+# Длительность подписки в днях. Для нативной подписки Telegram = ровно 30 (2592000 c).
 SUBSCRIPTION_DAYS = int(os.environ.get("SUBSCRIPTION_DAYS", "30"))
+# Период автопродления подписки Telegram Stars в секундах (Telegram принимает только 2592000).
+SUBSCRIPTION_PERIOD_SEC = 2592000
 # Контакт поддержки (для /paysupport и /terms).
 SUPPORT_CONTACT = os.environ.get("SUPPORT_CONTACT", "@your_support")
+
+# Триал: сколько дней безлимита выдать новому пользователю (0 = выключен).
+TRIAL_DAYS = int(os.environ.get("TRIAL_DAYS", "3"))
+
+# Пакеты разовых анализов: "кредитов:звёзд" через запятую.
+def _parse_packs(raw: str):
+    packs = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            credits, stars = part.split(":")
+            packs.append((int(credits), int(stars)))
+        except ValueError:
+            continue
+    return packs
+
+CREDIT_PACKS = _parse_packs(os.environ.get("CREDIT_PACKS", "50:70,200:220"))
+
+# BYOK: ключ шифрования (Fernet) для хранения чужих ключей OpenAI. Пусто = фича выключена.
+BYOK_ENCRYPTION_KEY = os.environ.get("BYOK_ENCRYPTION_KEY", "").strip()
 
 # ID администраторов (через запятую) — кому доступна команда /addpromo.
 ADMIN_IDS = {int(x) for x in os.environ.get("ADMIN_IDS", "").replace(" ", "").split(",") if x}

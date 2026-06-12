@@ -86,19 +86,31 @@ DATABASE_URL=postgresql://... BOT_TOKEN=... ADMIN_LOGIN=admin ADMIN_PASSWORD=pw 
 
 ## Монетизация (Telegram Stars)
 
-Платный только ИИ-анализ (фото/описание) — ручной ввод числа, отчёты и меню
-бесплатны всегда. Логика: первые `FREE_DAILY_AI` анализов в день бесплатны,
-дальше — пэйвол с предложением Premium (`SUBSCRIPTION_PRICE_STARS`★ на
-`SUBSCRIPTION_DAYS` дней) или ввода промокода.
+> ⚠️ Монетизация **выключена** флагом `MONETIZATION_ENABLED=0` (всё бесплатно,
+> без лимитов, кнопка Premium скрыта). Чтобы включить — `MONETIZATION_ENABLED=1`.
+> Реализована по стратегии из `МОНЕТИЗАЦИЯ.md`.
 
-Команды:
+Платный только ИИ-анализ (фото/описание) — ручной ввод числа, отчёты, меню и
+формы обратной связи бесплатны всегда. Логика доступа (`payments.access_mode`):
+свой ключ → безлимит за счёт юзера; иначе Premium → безлимит; иначе кредиты;
+иначе `FREE_DAILY_AI` бесплатных в день; дальше — пэйвол.
 
-- `/premium` — статус и покупка подписки;
-- `/promo КОД` — активировать промокод;
-- `/terms`, `/paysupport` — обязательные по правилам Telegram;
-- `/addpromo КОД premium_days|credits ЗНАЧЕНИЕ [макс] [ГГГГ-ММ-ДД]` — создать
-  промокод (только для `ADMIN_IDS`). Примеры:
-  `/addpromo WELCOME premium_days 7 100`, `/addpromo BONUS credits 10 50 2026-12-31`.
+Что реализовано:
+
+- **Premium-подписка с автопродлением** — нативная подписка Telegram Stars
+  (`create_invoice_link(subscription_period=2592000)`), Telegram сам списывает
+  каждые 30 дней; `premium_until` двигается по дате от Telegram. Отмена — `/cancelsub`.
+- **Пакеты разовых анализов** — `CREDIT_PACKS` (напр. `50:70,200:220`), кнопки в пэйволе.
+- **Триал** — `TRIAL_DAYS` дней безлимита новым при первом `/start`.
+- **Дешёвая модель для free-тира** — `OPENAI_MODEL_FREE` (`gpt-4o-mini`), платным — `OPENAI_MODEL`.
+- **BYOK** — свой ключ OpenAI: `/setkey sk-...` (ключ шифруется Fernet, сообщение
+  удаляется), `/delkey`. Включается заданием `BYOK_ENCRYPTION_KEY`.
+- **Аудит платежей и возвраты** — каждый платёж пишется в `payments`
+  (идемпотентно по `charge_id`); `/refund <user_id> <charge_id>` (админ) делает
+  `refund_star_payment` и отзывает Premium.
+- **Промокоды** — `/promo КОД`; `/addpromo КОД premium_days|credits ЗНАЧЕНИЕ [макс] [ГГГГ-ММ-ДД]` (админ).
+- **Статистика** — `/stats` (админ): юзеры, новые за 7д, активные Premium, платежи и звёзды за 30д.
+- **Обязательное по правилам Telegram** — `/terms`, `/paysupport`.
 
 **Вывод денег:** звёзды выводятся в TON через [fragment.com](https://fragment.com)
 (после холд-периода), TON продаётся за фиат. Прямой вывод на карту Telegram не

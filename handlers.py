@@ -45,25 +45,53 @@ def _today(user) -> dt.date:
 
 
 async def _gate(update, context):
-    """Проверка лимита ИИ-анализов. Если лимит исчерпан — шлёт пэйвол и возвращает (None, today).
-    Иначе возвращает (mode, today): premium | credit | free."""
+    """Проверка лимита ИИ-анализов. Если лимит исчерпан — шлёт пэйвол и возвращает (None, today, None).
+    Иначе возвращает (mode, today, user)."""
     user = await db.get_user(update.effective_user.id)
     today = _today(user)
     mode = payments.access_mode(user, today)
     if mode == "blocked":
         await payments.send_paywall(update)
-        return None, today
-    return mode, today
+        return None, today, None
+    return mode, today, user
+
+
+async def _run_estimate(update, user, mode, image_bytes=None, caption=None):
+    """Вызвать ИИ с нужной моделью/ключом. Для BYOK при ошибке — фолбэк на общий ключ.
+    Возвращает result-dict или None (если не получилось — вызывающий шлёт сообщение)."""
+    model, api_key = payments.ai_params(user, mode)
+    try:
+        return await ai.estimate_food(image_bytes=image_bytes, caption=caption,
+                                      model=model, api_key=api_key)
+    except Exception as e:
+        if mode == "byok":
+            log.warning("BYOK-ключ не сработал, фолбэк на общий: %s", e)
+            await update.effective_message.reply_text(
+                "⚠️ Твой ключ OpenAI не сработал — считаю на общем. Проверь ключ или /delkey.")
+            try:
+                return await ai.estimate_food(image_bytes=image_bytes, caption=caption,
+                                              model=config.OPENAI_MODEL)
+            except Exception as e2:
+                log.exception("Фолбэк тоже не удался: %s", e2)
+                return None
+        log.exception("Ошибка ИИ-оценки: %s", e)
+        return None
 
 
 # ------------------------------------------------------------------- команды
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
-    await db.ensure_user(u.id, u.username)
+    inserted = await db.ensure_user(u.id, u.username)
+    trial_note = None
+    if inserted and config.MONETIZATION_ENABLED and config.TRIAL_DAYS > 0:
+        await db.grant_premium_days(u.id, config.TRIAL_DAYS)
+        trial_note = f"🎁 Первые {config.TRIAL_DAYS} дня — безлимитный доступ!"
     user = await db.get_user(u.id)
     reports.schedule_user(context.application, user)
     await update.message.reply_text(WELCOME, parse_mode="Markdown")
+    if trial_note:
+        await update.message.reply_text(trial_note)
     # Всегда запускаем шаг с целью.
     context.user_data["awaiting"] = "goal"
     if user["goal"]:
@@ -203,7 +231,7 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("awaiting") in feedback.MEDIA_STATES:
         await feedback.handle_media(update, context, "photo", update.message.photo[-1].file_id)
         return
-    mode, today = await _gate(update, context)
+    mode, today, user = await _gate(update, context)
     if mode is None:
         return
     await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
@@ -211,10 +239,8 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_file = await photo.get_file()
     img_bytes = bytes(await tg_file.download_as_bytearray())
     caption = update.message.caption
-    try:
-        result = await ai.estimate_food(image_bytes=img_bytes, caption=caption)
-    except Exception as e:
-        log.exception("Ошибка распознавания фото: %s", e)
+    result = await _run_estimate(update, user, mode, image_bytes=img_bytes, caption=caption)
+    if result is None:
         await update.message.reply_text(
             "Не удалось распознать фото 😕 Попробуй ещё раз или пришли описание текстом.")
         return
@@ -274,14 +300,12 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # иначе — описание блюда, оцениваем через ИИ (под лимитом)
-    mode, today = await _gate(update, context)
+    mode, today, user = await _gate(update, context)
     if mode is None:
         return
     await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
-    try:
-        result = await ai.estimate_food(caption=text)
-    except Exception as e:
-        log.exception("Ошибка оценки по тексту: %s", e)
+    result = await _run_estimate(update, user, mode, caption=text)
+    if result is None:
         await update.message.reply_text("Не получилось оценить 😕 Попробуй иначе или пришли фото.")
         return
     await payments.consume(update.effective_user.id, mode, today)
@@ -349,6 +373,14 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "buy_premium":
         await q.message.reply_text("Открываю оплату звёздами…")
         await payments.send_premium_invoice(uid, context)
+
+    elif data.startswith("buy_pack:"):
+        credits = int(data.split(":")[1])
+        stars = dict(config.CREDIT_PACKS).get(credits)
+        if stars:
+            await payments.send_pack_invoice(uid, context, credits, stars)
+        else:
+            await q.message.reply_text("Пакет недоступен.")
 
     elif data == "enter_promo":
         context.user_data["awaiting"] = "promo"

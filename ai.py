@@ -12,6 +12,11 @@ import config
 
 _client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
 
+
+def _client_for(api_key: Optional[str]):
+    """Клиент с ключом пользователя (BYOK) или общий клиент бота."""
+    return AsyncOpenAI(api_key=api_key) if api_key else _client
+
 _SYSTEM = (
     "Ты — нутрициолог-ассистент. По фото и/или описанию блюда ты оцениваешь "
     "калорийность съеденного. Если не уверен — давай разумную среднюю оценку, "
@@ -23,9 +28,13 @@ _SYSTEM = (
 
 
 async def estimate_food(image_bytes: Optional[bytes] = None,
-                        caption: Optional[str] = None) -> dict:
+                        caption: Optional[str] = None,
+                        model: Optional[str] = None,
+                        api_key: Optional[str] = None) -> dict:
     """Оценить калорийность по фото и/или тексту.
 
+    model   — какую модель использовать (по умолчанию config.OPENAI_MODEL);
+    api_key — ключ пользователя (BYOK); если задан — запрос идёт через него.
     Возвращает dict: {calories:int, items:list, note:str}.
     """
     content = []
@@ -44,8 +53,8 @@ async def estimate_food(image_bytes: Optional[bytes] = None,
             "image_url": {"url": f"data:image/jpeg;base64,{b64}", "detail": "low"},
         })
 
-    resp = await _client.chat.completions.create(
-        model=config.OPENAI_MODEL,
+    resp = await _client_for(api_key).chat.completions.create(
+        model=model or config.OPENAI_MODEL,
         messages=[
             {"role": "system", "content": _SYSTEM},
             {"role": "user", "content": content},

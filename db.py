@@ -112,6 +112,12 @@ CREATE TABLE IF NOT EXISTS food_corrections (
     source_fb   BIGINT,                     -- id записи calorie_feedback
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Рантайм-настройки (меняются из админки без передеплоя). Напр. monetization_enabled.
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
 """
 
 
@@ -417,6 +423,19 @@ async def clear_openai_key(user_id: int) -> None:
     async with _pool.acquire() as conn:
         await conn.execute(
             "UPDATE users SET openai_key_enc=NULL WHERE user_id=$1", user_id)
+
+
+async def get_setting(key: str) -> Optional[str]:
+    async with _pool.acquire() as conn:
+        return await conn.fetchval("SELECT value FROM settings WHERE key=$1", key)
+
+
+async def set_setting(key: str, value: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO settings (key, value) VALUES ($1, $2)
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
+            key, value)
 
 
 async def admin_stats() -> dict:

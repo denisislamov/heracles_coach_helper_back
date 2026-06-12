@@ -22,22 +22,23 @@ log = logging.getLogger("calbot.handlers")
 # Текст-«число калорий»: «350», «+200», «350 ккал»
 _NUM_RE = re.compile(r"^\+?\s*(\d{1,5})\s*(ккал|kcal|кал|cal)?$", re.IGNORECASE)
 
-_PREMIUM_LINE = (
-    f"Бесплатно {config.FREE_DAILY_AI} ИИ-анализов в день, дальше — /premium.\n"
-    if config.MONETIZATION_ENABLED else "")
-
-WELCOME = (
-    "👋 Привет! Я *Жиромер* — помогу считать калории.\n\n"
-    "Что я умею:\n"
-    "• 📷 Пришли *фото еды* — оценю калорийность.\n"
-    "• 📷 + подпись — оценю точнее (например: «куриная грудка 200 г»).\n"
-    "• ✍️ Просто текст блюда — оценю по описанию.\n"
-    "• 🔢 Просто число (напр. `350`) — добавлю столько ккал вручную.\n\n"
-    "Ошибся? Под каждой записью кнопки *✏️ Исправить* и *🗑 Удалить*.\n"
-    "В конце дня пришлю дневной отчёт, раз в неделю — недельный.\n"
-    f"{_PREMIUM_LINE}"
-    "Меню — /menu."
-)
+def welcome_text() -> str:
+    premium_line = (
+        f"Бесплатно {payments.free_daily_ai()} анализа в день первые "
+        f"{payments.free_period_days()} дней, дальше — /premium.\n"
+        if payments.monetization_enabled() else "")
+    return (
+        "👋 Привет! Я *Жиромер* — помогу считать калории.\n\n"
+        "Что я умею:\n"
+        "• 📷 Пришли *фото еды* — оценю калорийность.\n"
+        "• 📷 + подпись — оценю точнее (например: «куриная грудка 200 г»).\n"
+        "• ✍️ Просто текст блюда — оценю по описанию.\n"
+        "• 🔢 Просто число (напр. `350`) — добавлю столько ккал вручную.\n\n"
+        "Ошибся? Под каждой записью кнопки *✏️ Исправить* и *🗑 Удалить*.\n"
+        "В конце дня пришлю дневной отчёт, раз в неделю — недельный.\n"
+        f"{premium_line}"
+        "Меню — /menu."
+    )
 
 
 def _today(user) -> dt.date:
@@ -51,7 +52,8 @@ async def _gate(update, context):
     today = _today(user)
     mode = payments.access_mode(user, today)
     if mode == "blocked":
-        await payments.send_paywall(update)
+        reason = "limit" if payments.within_free_period(user) else "period"
+        await payments.send_paywall(update, reason)
         return None, today, None
     return mode, today, user
 
@@ -84,12 +86,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
     inserted = await db.ensure_user(u.id, u.username)
     trial_note = None
-    if inserted and config.MONETIZATION_ENABLED and config.TRIAL_DAYS > 0:
+    if inserted and payments.monetization_enabled() and config.TRIAL_DAYS > 0:
         await db.grant_premium_days(u.id, config.TRIAL_DAYS)
         trial_note = f"🎁 Первые {config.TRIAL_DAYS} дня — безлимитный доступ!"
     user = await db.get_user(u.id)
     reports.schedule_user(context.application, user)
-    await update.message.reply_text(WELCOME, parse_mode="Markdown")
+    await update.message.reply_text(welcome_text(), parse_mode="Markdown")
     if trial_note:
         await update.message.reply_text(trial_note)
     # Всегда запускаем шаг с целью.
@@ -114,7 +116,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(WELCOME, parse_mode="Markdown")
+    await update.message.reply_text(welcome_text(), parse_mode="Markdown")
 
 
 async def feedback_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):

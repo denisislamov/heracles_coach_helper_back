@@ -26,6 +26,8 @@ ADMIN_LOGIN = os.environ.get("ADMIN_LOGIN", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Zhiromer-Admin-2026")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 STAR_USD = float(os.environ.get("STAR_USD", "0.013"))  # курс звезды для оценки выручки
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_MODEL_ADMIN = os.environ.get("OPENAI_MODEL_ADMIN", "gpt-4o-mini")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-please")
@@ -85,9 +87,7 @@ def index():
 
 
 # ----------------------------------------------------------------- Аналитика
-@app.route("/analytics")
-@login_required
-def analytics():
+def collect_stats() -> dict:
     def scalar(sql, params=None):
         row = query(sql, params, one=True)
         return list(row.values())[0] if row else 0
@@ -114,6 +114,13 @@ def analytics():
     stats["stickiness"] = round((stats["dau"] / stats["mau"] * 100), 1) if stats["mau"] else 0
     stats["usd_total"] = round(stats["stars_total"] * STAR_USD, 2)
     stats["usd_30d"] = round(stats["stars_30d"] * STAR_USD, 2)
+    return stats
+
+
+@app.route("/analytics")
+@login_required
+def analytics():
+    stats = collect_stats()
 
     # графики за 14 дней
     import datetime as dt
@@ -208,6 +215,101 @@ def promos():
         return redirect(url_for("promos"))
     rows = query("SELECT * FROM promo_codes ORDER BY code")
     return render_template("promos.html", rows=rows)
+
+
+# ----------------------------------------------------------------- Настройки
+def _get_setting(key, default=""):
+    row = query("SELECT value FROM settings WHERE key=%s", (key,), one=True)
+    return row["value"] if row else default
+
+
+def _set_setting(key, value):
+    execute("""INSERT INTO settings (key, value) VALUES (%s,%s)
+               ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value""", (key, str(value)))
+
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings():
+    if request.method == "POST":
+        mon = "1" if request.form.get("monetization") == "on" else "0"
+        _set_setting("monetization_enabled", mon)
+        try:
+            fd = max(0, int(request.form.get("free_daily_ai", "3")))
+            fp = max(1, int(request.form.get("free_period_days", "30")))
+            _set_setting("free_daily_ai", fd)
+            _set_setting("free_period_days", fp)
+        except ValueError:
+            flash("Лимит и период должны быть числами")
+        flash("Настройки сохранены — бот подхватит их в течение минуты")
+        return redirect(url_for("settings"))
+    cur = {
+        "monetization": _get_setting("monetization_enabled", "0") in ("1", "true", "yes", "on"),
+        "free_daily_ai": _get_setting("free_daily_ai", "3"),
+        "free_period_days": _get_setting("free_period_days", "30"),
+    }
+    return render_template("settings.html", cur=cur)
+
+
+# ----------------------------------------------------------------- ИИ-помощник
+ASSISTANT_SYSTEM = (
+    "Ты — продуктовый аналитик Telegram-бота для подсчёта калорий «Жиромер». "
+    "Тебе дают текущие метрики продукта. Отвечай кратко и по делу на русском: "
+    "находи проблемы, предлагай конкретные шаги по росту, удержанию и монетизации. "
+    "Опирайся только на предоставленные цифры, не выдумывай данные."
+)
+
+
+def _stats_context():
+    s = collect_stats()
+    return (
+        f"Пользователей всего: {s['total_users']}; новых сегодня/7д/30д: "
+        f"{s['new_today']}/{s['new_7d']}/{s['new_30d']}. "
+        f"DAU/WAU/MAU: {s['dau']}/{s['wau']}/{s['mau']}, stickiness {s['stickiness']}%. "
+        f"Приёмов пищи сегодня/7д: {s['entries_today']}/{s['entries_7d']}. "
+        f"Активных Premium: {s['premium_active']}, платящих всего: {s['paying_users']}, "
+        f"конверсия {s['conversion']}%. Выручка 30д: {s['stars_30d']}★ (≈${s['usd_30d']}). "
+        f"Открытых багов: {s['open_bugs']}, замечаний по калориям: {s['open_cal']}."
+    )
+
+
+def _ask_openai(question, history):
+    if not OPENAI_API_KEY:
+        return "OPENAI_API_KEY не задан для админки — добавь его в Environment сервиса."
+    messages = [{"role": "system", "content": ASSISTANT_SYSTEM},
+                {"role": "system", "content": "Текущие метрики: " + _stats_context()}]
+    for turn in history[-6:]:
+        messages.append({"role": "user", "content": turn["q"]})
+        messages.append({"role": "assistant", "content": turn["a"]})
+    messages.append({"role": "user", "content": question})
+    try:
+        r = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            json={"model": OPENAI_MODEL_ADMIN, "messages": messages,
+                  "max_tokens": 700, "temperature": 0.5},
+            timeout=60)
+        data = r.json()
+        return data["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"Не удалось получить ответ: {e}"
+
+
+@app.route("/assistant", methods=["GET", "POST"])
+@login_required
+def assistant():
+    history = session.get("chat", [])
+    if request.method == "POST":
+        if request.form.get("action") == "clear":
+            session["chat"] = []
+            return redirect(url_for("assistant"))
+        q = (request.form.get("q") or "").strip()
+        if q:
+            a = _ask_openai(q, history)
+            history = history + [{"q": q, "a": a}]
+            session["chat"] = history[-12:]
+        return redirect(url_for("assistant"))
+    return render_template("assistant.html", history=history, ctx=_stats_context())
 
 
 # ----------------------------------------------------------------- прокси медиа

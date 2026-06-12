@@ -46,8 +46,10 @@ DEFAULT_WEEKLY_DOW = int(os.environ.get("DEFAULT_WEEKLY_DOW", "6"))    # 0=пн 
 # Главный выключатель монетизации. При 0 — всё бесплатно, без лимитов и пэйвола,
 # кнопка Premium скрыта. Чтобы включить — задай MONETIZATION_ENABLED=1.
 MONETIZATION_ENABLED = os.environ.get("MONETIZATION_ENABLED", "1").lower() in ("1", "true", "yes")
-# Сколько ИИ-анализов в день бесплатно (до пэйвола).
-FREE_DAILY_AI = int(os.environ.get("FREE_DAILY_AI", "5"))
+# Сколько ИИ-анализов в день бесплатно (в течение бесплатного периода).
+FREE_DAILY_AI = int(os.environ.get("FREE_DAILY_AI", "3"))
+# Длина бесплатного периода в днях с момента регистрации (потом — только Premium).
+FREE_PERIOD_DAYS = int(os.environ.get("FREE_PERIOD_DAYS", "30"))
 # Цена месячной подписки Premium в звёздах (валюта XTR). 1 ⭐ ≈ пара центов.
 SUBSCRIPTION_PRICE_STARS = int(os.environ.get("SUBSCRIPTION_PRICE_STARS", "150"))
 # Длительность подписки в днях. Для нативной подписки Telegram = ровно 30 (2592000 c).
@@ -57,8 +59,9 @@ SUBSCRIPTION_PERIOD_SEC = 2592000
 # Контакт поддержки (для /paysupport и /terms).
 SUPPORT_CONTACT = os.environ.get("SUPPORT_CONTACT", "@your_support")
 
-# Триал: сколько дней безлимита выдать новому пользователю (0 = выключен).
-TRIAL_DAYS = int(os.environ.get("TRIAL_DAYS", "3"))
+# Доп. триал безлимита для новых (0 = выкл). Бесплатная модель уже задана
+# параметрами FREE_DAILY_AI + FREE_PERIOD_DAYS, поэтому по умолчанию выключен.
+TRIAL_DAYS = int(os.environ.get("TRIAL_DAYS", "0"))
 
 # Пакеты разовых анализов: "кредитов:звёзд" через запятую.
 def _parse_packs(raw: str):

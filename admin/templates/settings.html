@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% set active = 'settings' %}
+{% block content %}
+<h1>⚙️ Настройки</h1>
+
+<div class="card" style="max-width:560px">
+  <form method="post" style="display:flex;flex-direction:column;gap:16px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <label style="font-size:16px;">Монетизация включена</label>
+      <input type="checkbox" name="monetization" {{ 'checked' if cur.monetization }} style="width:20px;height:20px;">
+    </div>
+    <p class="muted" style="margin:-8px 0 0">Выключено = всё бесплатно и без лимитов, кнопка Premium скрыта.</p>
+
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Бесплатных анализов в день</label>
+      <input name="free_daily_ai" type="number" min="0" value="{{ cur.free_daily_ai }}" style="width:120px">
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Длина бесплатного периода, дней (с регистрации)</label>
+      <input name="free_period_days" type="number" min="1" value="{{ cur.free_period_days }}" style="width:120px">
+    </div>
+
+    <button class="primary" type="submit" style="align-self:flex-start;">Сохранить</button>
+  </form>
+</div>
+
+<p class="muted" style="margin-top:14px;max-width:560px">
+  Правило бесплатного доступа: до <b>{{ cur.free_daily_ai }}</b> анализов в день в течение
+  первых <b>{{ cur.free_period_days }}</b> дней после регистрации. Дальше (больше лимита в день
+  или после окончания периода) — только Premium. Изменения бот применяет в течение ~1 минуты.
+</p>
+{% endblock %}

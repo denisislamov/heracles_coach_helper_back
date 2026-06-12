@@ -35,7 +35,9 @@ services:
       - key: MONETIZATION_ENABLED
         value: "0"             # 0 = выключено (всё бесплатно). 1 — включить оплату.
       - key: FREE_DAILY_AI
-        value: "5"
+        value: "3"             # дефолт; реальное значение берётся из админки (settings)
+      - key: FREE_PERIOD_DAYS
+        value: "30"            # бесплатный период; меняется в админке
       - key: SUBSCRIPTION_PRICE_STARS
         value: "150"
       - key: SUBSCRIPTION_DAYS
@@ -70,6 +72,10 @@ services:
           property: connectionString
       - key: BOT_TOKEN
         sync: false            # тот же токен бота (для показа фото/видео)
+      - key: OPENAI_API_KEY
+        sync: false            # для ИИ-помощника по аналитике
+      - key: OPENAI_MODEL_ADMIN
+        value: gpt-4o-mini     # дешёвая модель для чата-помощника
       - key: ADMIN_LOGIN
         sync: false            # логин (можно свой email)
       - key: ADMIN_PASSWORD

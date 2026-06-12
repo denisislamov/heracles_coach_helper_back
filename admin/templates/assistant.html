@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% set active = 'assistant' %}
+{% block content %}
+<h1>🤖 Помощник по аналитике</h1>
+<p class="muted" style="margin-top:-8px">Видит текущие метрики продукта и подсказывает по росту, удержанию и монетизации.</p>
+
+<div class="card" style="margin-bottom:16px;font-size:13px;" >
+  <b>Контекст для ИИ (текущие цифры):</b><br>
+  <span class="muted">{{ ctx }}</span>
+</div>
+
+{% if history %}
+<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
+  {% for turn in history %}
+  <div class="card" style="background:#202637;">
+    <div class="muted" style="font-size:12px;">Вопрос</div>
+    <div style="margin:4px 0 10px;">{{ turn.q }}</div>
+    <div class="muted" style="font-size:12px;">Ответ</div>
+    <div style="white-space:pre-wrap;">{{ turn.a }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<form method="post" style="display:flex;gap:10px;align-items:flex-end;">
+  <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+    <label class="muted">Спроси про метрики или попроси совет</label>
+    <input name="q" autofocus placeholder="Напр.: почему низкая конверсия и что сделать?" style="width:100%;">
+  </div>
+  <button class="primary" type="submit">Спросить</button>
+</form>
+{% if history %}
+<form method="post" style="margin-top:10px;">
+  <input type="hidden" name="action" value="clear">
+  <button type="submit">Очистить чат</button>
+</form>
+{% endif %}
+
+<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+  {% for s in ["Дай 3 главных вывода по цифрам", "Как поднять конверсию в Premium?", "Что улучшить в удержании?", "Стоит ли менять цену подписки?"] %}
+  <form method="post"><input type="hidden" name="q" value="{{ s }}"><button type="submit">{{ s }}</button></form>
+  {% endfor %}
+</div>
+{% endblock %}

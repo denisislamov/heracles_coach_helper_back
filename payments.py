@@ -20,6 +20,44 @@ log = logging.getLogger("calbot.payments")
 PREMIUM_PAYLOAD = "premium_sub"
 PACK_PREFIX = "credits:"   # payload пакета кредитов: "credits:<n>"
 
+# Рантайм-настройки (settings в БД), меняются из админки и кэшируются в процессе.
+SETTING_MONETIZATION = "monetization_enabled"
+SETTING_FREE_DAILY = "free_daily_ai"
+SETTING_FREE_PERIOD = "free_period_days"
+_settings: dict = {}  # пустой → используем дефолты из ENV
+
+
+def monetization_enabled() -> bool:
+    return _settings.get("mon", config.MONETIZATION_ENABLED)
+
+
+def free_daily_ai() -> int:
+    return _settings.get("free_daily", config.FREE_DAILY_AI)
+
+
+def free_period_days() -> int:
+    return _settings.get("free_period", config.FREE_PERIOD_DAYS)
+
+
+async def refresh_settings() -> None:
+    """Подтянуть настройки из БД в кэш (старт + по таймеру)."""
+    global _settings
+    try:
+        mon = await db.get_setting(SETTING_MONETIZATION)
+        fd = await db.get_setting(SETTING_FREE_DAILY)
+        fp = await db.get_setting(SETTING_FREE_PERIOD)
+    except Exception:
+        return
+    s = {}
+    s["mon"] = (mon.strip() in ("1", "true", "yes", "on")) if mon is not None else config.MONETIZATION_ENABLED
+    s["free_daily"] = int(fd) if (fd and fd.strip().isdigit()) else config.FREE_DAILY_AI
+    s["free_period"] = int(fp) if (fp and fp.strip().isdigit()) else config.FREE_PERIOD_DAYS
+    _settings = s
+
+
+async def refresh_settings_job(context) -> None:
+    await refresh_settings()
+
 
 # ----------------------------------------------------------------- access-гейт
 
@@ -35,19 +73,32 @@ def free_used(user, today: dt.date) -> int:
     return 0
 
 
+def within_free_period(user, now: dt.datetime = None) -> bool:
+    """В пределах ли бесплатного периода (N дней с регистрации)."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    created = user.get("created_at")
+    if not created:
+        return True
+    return (now - created) <= dt.timedelta(days=free_period_days())
+
+
 def access_mode(user, today: dt.date) -> str:
     """Каким способом пройдёт следующий ИИ-анализ:
-    byok | unlimited | premium | credit | free | blocked."""
+    byok | unlimited | premium | credit | free | blocked.
+
+    Бесплатный тариф: до free_daily_ai() анализов в день и только в течение
+    первых free_period_days() дней с регистрации. Дальше — Premium/кредиты.
+    """
     # Свой ключ OpenAI — всегда безлимит и за счёт пользователя.
     if byok.enabled() and user.get("openai_key_enc"):
         return "byok"
-    if not config.MONETIZATION_ENABLED:
+    if not monetization_enabled():
         return "unlimited"
     if is_premium(user):
         return "premium"
     if user["credits"] > 0:
         return "credit"
-    if free_used(user, today) < config.FREE_DAILY_AI:
+    if within_free_period(user) and free_used(user, today) < free_daily_ai():
         return "free"
     return "blocked"
 
@@ -70,13 +121,20 @@ def ai_params(user, mode: str):
 
 
 def remaining_text(user, today: dt.date) -> str:
-    if not config.MONETIZATION_ENABLED:
+    if not monetization_enabled():
         return "Сейчас все функции бесплатны и без лимитов."
     if is_premium(user):
         return "Premium активен — безлимит."
-    left = max(0, config.FREE_DAILY_AI - free_used(user, today))
-    extra = f" + {user['credits']} кредитов" if user["credits"] else ""
-    return f"Сегодня осталось бесплатных анализов: {left}/{config.FREE_DAILY_AI}{extra}."
+    if user["credits"] > 0:
+        suffix = f" Доступно кредитов: {user['credits']}."
+    else:
+        suffix = ""
+    if not within_free_period(user):
+        return (f"Бесплатный период ({free_period_days()} дн.) закончился — "
+                f"оформи Premium для продолжения.{suffix}")
+    left = max(0, free_daily_ai() - free_used(user, today))
+    return (f"Сегодня осталось бесплатных анализов: {left}/{free_daily_ai()}."
+            f" Бесплатно — первые {free_period_days()} дней.{suffix}")
 
 
 def paywall_keyboard() -> InlineKeyboardMarkup:
@@ -89,13 +147,17 @@ def paywall_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-async def send_paywall(update: Update) -> None:
+async def send_paywall(update: Update, reason: str = "limit") -> None:
     msg = update.effective_message
+    if reason == "period":
+        head = (f"🚫 Бесплатный период ({free_period_days()} дн.) закончился.\n\n")
+    else:
+        head = (f"🚫 Дневной лимит бесплатных анализов исчерпан "
+                f"({free_daily_ai()}/день).\n\n")
     await msg.reply_text(
-        "🚫 Бесплатный дневной лимит исчерпан.\n\n"
-        f"Оформи *Premium* за {config.SUBSCRIPTION_PRICE_STARS}★ на "
-        f"{config.SUBSCRIPTION_DAYS} дней — безлимитные анализы еды.\n"
-        "Или активируй промокод.",
+        head +
+        f"Оформи *Premium* за {config.SUBSCRIPTION_PRICE_STARS}★/мес — безлимитные "
+        "анализы еды. Или возьми пакет анализов / активируй промокод.",
         parse_mode="Markdown",
         reply_markup=paywall_keyboard(),
     )
@@ -192,7 +254,7 @@ async def on_successful_payment(update: Update, context: ContextTypes.DEFAULT_TY
 async def premium_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     uid = update.effective_user.id
     await db.ensure_user(uid, update.effective_user.username)
-    if not config.MONETIZATION_ENABLED:
+    if not monetization_enabled():
         await update.message.reply_text("Сейчас все функции бесплатны 🎉 Оплата отключена.")
         return
     user = await db.get_user(uid)

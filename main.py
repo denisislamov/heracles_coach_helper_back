@@ -20,8 +20,12 @@ log = logging.getLogger("calbot")
 
 async def _post_init(application: Application) -> None:
     await db.init()
+    await payments.refresh_settings()
     await reports.schedule_all(application)
-    log.info("БД инициализирована, задачи отчётов запланированы.")
+    # подхватывать смену настроек (монетизация/лимиты) из админки раз в минуту
+    application.job_queue.run_repeating(payments.refresh_settings_job, interval=60, first=60)
+    log.info("БД инициализирована, отчёты запланированы. Монетизация: %s, free=%s/день %s дней",
+             payments.monetization_enabled(), payments.free_daily_ai(), payments.free_period_days())
 
 
 async def _post_shutdown(application: Application) -> None:

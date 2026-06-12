@@ -34,7 +34,9 @@ def free_used(user, today: dt.date) -> int:
 
 
 def access_mode(user, today: dt.date) -> str:
-    """Каким способом пройдёт следующий ИИ-анализ: premium | credit | free | blocked."""
+    """Каким способом пройдёт следующий ИИ-анализ: unlimited | premium | credit | free | blocked."""
+    if not config.MONETIZATION_ENABLED:
+        return "unlimited"
     if is_premium(user):
         return "premium"
     if user["credits"] > 0:
@@ -53,6 +55,8 @@ async def consume(user_id: int, mode: str, today: dt.date) -> None:
 
 
 def remaining_text(user, today: dt.date) -> str:
+    if not config.MONETIZATION_ENABLED:
+        return "Сейчас все функции бесплатны и без лимитов."
     if is_premium(user):
         return "Premium активен — безлимит."
     left = max(0, config.FREE_DAILY_AI - free_used(user, today))
@@ -127,6 +131,9 @@ async def on_successful_payment(update: Update, context: ContextTypes.DEFAULT_TY
 async def premium_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     uid = update.effective_user.id
     await db.ensure_user(uid, update.effective_user.username)
+    if not config.MONETIZATION_ENABLED:
+        await update.message.reply_text("Сейчас все функции бесплатны 🎉 Оплата отключена.")
+        return
     user = await db.get_user(uid)
     today = dt.datetime.now(dt.timezone.utc).date()
     if is_premium(user):

@@ -41,6 +41,9 @@ DEFAULT_DAILY_HOUR = int(os.environ.get("DEFAULT_DAILY_HOUR", "21"))   # час 
 DEFAULT_WEEKLY_DOW = int(os.environ.get("DEFAULT_WEEKLY_DOW", "6"))    # 0=пн .. 6=вс
 
 # --- Монетизация (Telegram Stars) ---
+# Главный выключатель монетизации. При 0 — всё бесплатно, без лимитов и пэйвола,
+# кнопка Premium скрыта. Чтобы включить — задай MONETIZATION_ENABLED=1.
+MONETIZATION_ENABLED = os.environ.get("MONETIZATION_ENABLED", "1").lower() in ("1", "true", "yes")
 # Сколько ИИ-анализов в день бесплатно (до пэйвола).
 FREE_DAILY_AI = int(os.environ.get("FREE_DAILY_AI", "5"))
 # Цена месячной подписки Premium в звёздах (валюта XTR). 1 ⭐ ≈ пара центов.

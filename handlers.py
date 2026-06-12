@@ -22,6 +22,10 @@ log = logging.getLogger("calbot.handlers")
 # Текст-«число калорий»: «350», «+200», «350 ккал»
 _NUM_RE = re.compile(r"^\+?\s*(\d{1,5})\s*(ккал|kcal|кал|cal)?$", re.IGNORECASE)
 
+_PREMIUM_LINE = (
+    f"Бесплатно {config.FREE_DAILY_AI} ИИ-анализов в день, дальше — /premium.\n"
+    if config.MONETIZATION_ENABLED else "")
+
 WELCOME = (
     "👋 Привет! Я *Жиромер* — помогу считать калории.\n\n"
     "Что я умею:\n"
@@ -31,8 +35,8 @@ WELCOME = (
     "• 🔢 Просто число (напр. `350`) — добавлю столько ккал вручную.\n\n"
     "Ошибся? Под каждой записью кнопки *✏️ Исправить* и *🗑 Удалить*.\n"
     "В конце дня пришлю дневной отчёт, раз в неделю — недельный.\n"
-    f"Бесплатно {config.FREE_DAILY_AI} ИИ-анализов в день, дальше — /premium.\n"
-    "Меню — /menu, промокод — /promo."
+    f"{_PREMIUM_LINE}"
+    "Меню — /menu."
 )
 
 

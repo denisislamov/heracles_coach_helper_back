@@ -1,18 +1,22 @@
 """Инлайн-клавиатуры и тексты меню."""
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+import config
+
 WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
 
 def main_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
+    rows = [
         [InlineKeyboardButton("📊 Сегодня", callback_data="today"),
          InlineKeyboardButton("📅 Неделя", callback_data="week")],
         [InlineKeyboardButton("🎯 Изменить цель", callback_data="set_goal")],
-        [InlineKeyboardButton("⭐ Premium", callback_data="premium")],
-        [InlineKeyboardButton("⚙️ Настройки", callback_data="settings"),
-         InlineKeyboardButton("🛟 Обратная связь", callback_data="feedback")],
-    ])
+    ]
+    if config.MONETIZATION_ENABLED:
+        rows.append([InlineKeyboardButton("⭐ Premium", callback_data="premium")])
+    rows.append([InlineKeyboardButton("⚙️ Настройки", callback_data="settings"),
+                 InlineKeyboardButton("🛟 Обратная связь", callback_data="feedback")])
+    return InlineKeyboardMarkup(rows)
 
 
 def settings_menu(user) -> InlineKeyboardMarkup:

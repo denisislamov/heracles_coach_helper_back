@@ -30,6 +30,8 @@ services:
       - key: DEFAULT_WEEKLY_DOW
         value: "6"
       # --- Монетизация (Telegram Stars) ---
+      - key: MONETIZATION_ENABLED
+        value: "0"             # 0 = выключено (всё бесплатно). 1 — включить оплату.
       - key: FREE_DAILY_AI
         value: "5"
       - key: SUBSCRIPTION_PRICE_STARS

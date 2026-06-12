@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Жиромер — админка</title>
+  <style>
+    :root { --bg:#0f1115; --card:#1a1d25; --line:#2a2f3a; --txt:#e6e8ee; --muted:#9aa3b2; --accent:#4ade80; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--txt); }
+    header { display:flex; align-items:center; gap:18px; padding:14px 22px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; }
+    header .brand { font-weight:700; font-size:18px; }
+    header nav { display:flex; gap:14px; flex:1; }
+    header a { color:var(--muted); text-decoration:none; padding:6px 10px; border-radius:8px; }
+    header a.active, header a:hover { color:var(--txt); background:#222633; }
+    header .logout { color:var(--muted); }
+    main { padding:22px; max-width:1100px; margin:0 auto; }
+    h1 { font-size:22px; margin:0 0 18px; }
+    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:24px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+    .card .label { color:var(--muted); font-size:13px; }
+    .card .value { font-size:26px; font-weight:700; margin-top:6px; }
+    .card .sub { color:var(--muted); font-size:12px; margin-top:4px; }
+    table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+    th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; font-size:14px; }
+    th { color:var(--muted); font-weight:600; background:#161922; }
+    tr:last-child td { border-bottom:none; }
+    .badge { padding:2px 8px; border-radius:999px; font-size:12px; }
+    .badge.new { background:#3b2f12; color:#f5c451; }
+    .badge.in_progress { background:#12293b; color:#5bb8f5; }
+    .badge.done { background:#143020; color:var(--accent); }
+    select, button, input { background:#222633; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:13px; }
+    button { cursor:pointer; }
+    button.primary { background:var(--accent); color:#06210f; border:none; font-weight:600; }
+    img.media, video.media { max-width:160px; max-height:160px; border-radius:8px; border:1px solid var(--line); }
+    .flash { background:#3b1212; color:#f5a3a3; padding:10px 14px; border-radius:10px; margin-bottom:14px; }
+    .muted { color:var(--muted); }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    @media (max-width:820px){ .grid2{ grid-template-columns:1fr; } }
+    .chart-box { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% if session.get('auth') %}
+<header>
+  <span class="brand">🍏 Жиромер</span>
+  <nav>
+    <a href="{{ url_for('analytics') }}" class="{{ 'active' if active=='analytics' }}">📊 Аналитика</a>
+    <a href="{{ url_for('bugs') }}" class="{{ 'active' if active=='bugs' }}">🐞 Баги</a>
+    <a href="{{ url_for('calorie_feedback') }}" class="{{ 'active' if active=='cal' }}">🍽 Неверные калории</a>
+  </nav>
+  <a href="{{ url_for('logout') }}" class="logout">Выйти →</a>
+</header>
+{% endif %}
+<main>
+  {% with msgs = get_flashed_messages() %}
+    {% for m in msgs %}<div class="flash">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

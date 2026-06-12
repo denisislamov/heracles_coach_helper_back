@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:360px;margin:8vh auto;">
+  <h1>🍏 Вход в админку</h1>
+  <form method="post" style="display:flex;flex-direction:column;gap:12px;">
+    <input name="login" placeholder="Логин или email" autofocus>
+    <input name="password" type="password" placeholder="Пароль">
+    <button class="primary" type="submit">Войти</button>
+  </form>
+</div>
+{% endblock %}

@@ -43,6 +43,32 @@ services:
       - key: TELEGRAM_TEST_ENV
         value: "0"             # в проде всегда 0
 
+  # --- Веб-админка (отдельный сервис, та же база) ---
+  - type: web
+    name: zhiromer-admin
+    runtime: python
+    plan: free
+    rootDir: admin
+    buildCommand: pip install --timeout 120 --retries 10 -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: zhiromer-db
+          property: connectionString
+      - key: BOT_TOKEN
+        sync: false            # тот же токен бота (для показа фото/видео)
+      - key: ADMIN_LOGIN
+        sync: false            # логин (можно свой email)
+      - key: ADMIN_PASSWORD
+        sync: false            # пароль (обязательно поменяй)
+      - key: SECRET_KEY
+        generateValue: true    # секрет сессий — Render сгенерирует сам
+      - key: STAR_USD
+        value: "0.013"
+
 databases:
   - name: zhiromer-db
     plan: free

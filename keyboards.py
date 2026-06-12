@@ -10,7 +10,8 @@ def main_menu() -> InlineKeyboardMarkup:
          InlineKeyboardButton("📅 Неделя", callback_data="week")],
         [InlineKeyboardButton("🎯 Изменить цель", callback_data="set_goal")],
         [InlineKeyboardButton("⭐ Premium", callback_data="premium")],
-        [InlineKeyboardButton("⚙️ Настройки", callback_data="settings")],
+        [InlineKeyboardButton("⚙️ Настройки", callback_data="settings"),
+         InlineKeyboardButton("🛟 Обратная связь", callback_data="feedback")],
     ])
 
 

@@ -108,6 +108,11 @@ async def on_successful_payment(update: Update, context: ContextTypes.DEFAULT_TY
     uid = update.effective_user.id
     log.info("Оплата получена: user=%s payload=%s charge=%s amount=%s",
              uid, sp.invoice_payload, sp.telegram_payment_charge_id, sp.total_amount)
+    try:
+        await db.record_payment(uid, sp.invoice_payload, sp.total_amount,
+                                sp.telegram_payment_charge_id)
+    except Exception:
+        log.exception("Не удалось записать платёж в БД")
     if sp.invoice_payload == PREMIUM_PAYLOAD:
         await db.grant_premium_days(uid, config.SUBSCRIPTION_DAYS)
         user = await db.get_user(uid)

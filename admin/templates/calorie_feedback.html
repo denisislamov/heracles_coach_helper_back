@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% set active = 'cal' %}
+{% block content %}
+<h1>🍽 Неверные калории</h1>
+{% if not rows %}<p class="muted">Пока нет замечаний по калориям.</p>{% else %}
+<table>
+  <tr><th>#</th><th>Дата</th><th>Пользователь</th><th>Блюдо / что не так</th><th>Верно, ккал</th><th>Фото</th><th>Статус</th><th>Действия</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.id }}</td>
+    <td class="muted">{{ r.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+    <td>{% if r.username %}@{{ r.username }}{% else %}id {{ r.user_id }}{% endif %}</td>
+    <td style="max-width:360px">{{ r.dish }}</td>
+    <td>{{ r.correct_kcal if r.correct_kcal is not none else '—' }}</td>
+    <td>
+      {% if r.media_type %}<a href="{{ url_for('media', file_id=r.file_id) }}" target="_blank"><img class="media" src="{{ url_for('media', file_id=r.file_id) }}"></a>
+      {% else %}<span class="muted">—</span>{% endif %}
+    </td>
+    <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
+    <td>
+      <form method="post" style="display:flex;gap:6px;flex-wrap:wrap;">
+        <input type="hidden" name="id" value="{{ r.id }}">
+        <select name="status">
+          <option value="new" {{ 'selected' if r.status=='new' }}>new</option>
+          <option value="in_progress" {{ 'selected' if r.status=='in_progress' }}>in_progress</option>
+          <option value="done" {{ 'selected' if r.status=='done' }}>done</option>
+        </select>
+        <button type="submit">Сохранить</button>
+        {% if r.correct_kcal is not none %}
+        <button class="primary" type="submit" name="action" value="approve" title="Добавить как правку для распознавания">✓ В правки</button>
+        {% endif %}
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<h1 style="margin-top:34px">✅ Утверждённые правки (для распознавания)</h1>
+{% if not corrections %}<p class="muted">Пока нет утверждённых правок. Нажми «✓ В правки» у замечания с указанным верным значением.</p>{% else %}
+<table>
+  <tr><th>#</th><th>Дата</th><th>Блюдо</th><th>Ккал</th></tr>
+  {% for c in corrections %}
+  <tr><td>{{ c.id }}</td><td class="muted">{{ c.created_at.strftime('%d.%m.%Y') }}</td><td>{{ c.dish }}</td><td>{{ c.kcal }}</td></tr>
+  {% endfor %}
+</table>
+<p class="muted" style="margin-top:8px">Эти правки можно позже подключить к распознаванию, чтобы бот точнее считал известные блюда.</p>
+{% endif %}
+{% endblock %}

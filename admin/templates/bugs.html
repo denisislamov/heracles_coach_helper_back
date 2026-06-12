@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% set active = 'bugs' %}
+{% block content %}
+<h1>🐞 Баг-репорты</h1>
+{% if not rows %}<p class="muted">Пока нет ни одного баг-репорта.</p>{% else %}
+<table>
+  <tr><th>#</th><th>Дата</th><th>Пользователь</th><th>Описание</th><th>Медиа</th><th>Статус</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.id }}</td>
+    <td class="muted">{{ r.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+    <td>{% if r.username %}@{{ r.username }}{% else %}id {{ r.user_id }}{% endif %}</td>
+    <td style="max-width:380px">{{ r.description }}</td>
+    <td>
+      {% if r.media_type == 'photo' %}<a href="{{ url_for('media', file_id=r.file_id) }}" target="_blank"><img class="media" src="{{ url_for('media', file_id=r.file_id) }}"></a>
+      {% elif r.media_type == 'video' %}<video class="media" controls src="{{ url_for('media', file_id=r.file_id) }}"></video>
+      {% else %}<span class="muted">—</span>{% endif %}
+    </td>
+    <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
+    <td>
+      <form method="post" style="display:flex;gap:6px;">
+        <input type="hidden" name="id" value="{{ r.id }}">
+        <select name="status">
+          <option value="new" {{ 'selected' if r.status=='new' }}>new</option>
+          <option value="in_progress" {{ 'selected' if r.status=='in_progress' }}>in_progress</option>
+          <option value="done" {{ 'selected' if r.status=='done' }}>done</option>
+        </select>
+        <button class="primary" type="submit">OK</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

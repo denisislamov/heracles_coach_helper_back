@@ -12,6 +12,7 @@ from telegram.ext import ContextTypes
 import ai
 import config
 import db
+import feedback
 import keyboards as kb
 import payments
 import reports
@@ -82,6 +83,25 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(WELCOME, parse_mode="Markdown")
+
+
+async def feedback_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await db.ensure_user(update.effective_user.id, update.effective_user.username)
+    await update.message.reply_text(
+        "🛟 *Обратная связь*\n\nВыбери, о чём сообщить:",
+        parse_mode="Markdown", reply_markup=feedback.menu_keyboard())
+
+
+async def on_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await db.ensure_user(update.effective_user.id, update.effective_user.username)
+    if context.user_data.get("awaiting") in feedback.MEDIA_STATES:
+        await feedback.handle_media(update, context, "video", update.message.video.file_id)
+    else:
+        await update.message.reply_text("Видео я пока не распознаю. Пришли фото блюда 📷")
+
+
+async def on_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await feedback.handle_document(update, context)
 
 
 # ----------------------------------------------------- логирование приёма пищи
@@ -175,6 +195,10 @@ async def _handle_fix_input(update, context, text: str):
 
 async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.ensure_user(update.effective_user.id, update.effective_user.username)
+    # фото как вложение в форму обратной связи
+    if context.user_data.get("awaiting") in feedback.MEDIA_STATES:
+        await feedback.handle_media(update, context, "photo", update.message.photo[-1].file_id)
+        return
     mode, today = await _gate(update, context)
     if mode is None:
         return
@@ -206,6 +230,12 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ожидаем ввод цели / часа и т.п.
     awaiting = context.user_data.get("awaiting")
+
+    # формы обратной связи
+    if awaiting in feedback.TEXT_STATES:
+        await feedback.handle_text(update, context, text)
+        return
+
     if awaiting == "goal":
         m = re.search(r"\d{3,5}", text)
         if not m:
@@ -333,6 +363,15 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"*Premium* — {config.SUBSCRIPTION_PRICE_STARS}★ на "
                 f"{config.SUBSCRIPTION_DAYS} дней, безлимитные анализы.",
                 parse_mode="Markdown", reply_markup=payments.paywall_keyboard())
+
+    elif data == "feedback":
+        await feedback.open_menu(q)
+    elif data == "fb_bug":
+        await q.edit_message_text("🐞 Баг-репорт")
+        await feedback.start_bug(update, context)
+    elif data == "fb_cal":
+        await q.edit_message_text("🍽 Неверные калории")
+        await feedback.start_cal(update, context)
 
     elif data == "menu":
         await q.edit_message_text("Главное меню:", reply_markup=kb.main_menu())

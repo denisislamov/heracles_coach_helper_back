@@ -60,6 +60,50 @@ CREATE TABLE IF NOT EXISTS redemptions (
     redeemed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, code)
 );
+
+-- Обратная связь: баг-репорты.
+CREATE TABLE IF NOT EXISTS bug_reports (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT,
+    username    TEXT,
+    description TEXT NOT NULL,
+    media_type  TEXT,                       -- 'photo' | 'video' | NULL
+    file_id     TEXT,                       -- Telegram file_id
+    status      TEXT NOT NULL DEFAULT 'new',-- new | in_progress | done
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Обратная связь: неверный подсчёт калорий.
+CREATE TABLE IF NOT EXISTS calorie_feedback (
+    id            BIGSERIAL PRIMARY KEY,
+    user_id       BIGINT,
+    username      TEXT,
+    dish          TEXT NOT NULL,            -- описание блюда / что не так
+    correct_kcal  INTEGER,                  -- правильное значение (если указал)
+    media_type    TEXT,
+    file_id       TEXT,
+    status        TEXT NOT NULL DEFAULT 'new',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Учёт платежей (для аналитики выручки).
+CREATE TABLE IF NOT EXISTS payments (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT,
+    payload      TEXT,
+    amount_stars INTEGER NOT NULL,
+    charge_id    TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Утверждённые правки калорийности (на будущее — для уточнения распознавания).
+CREATE TABLE IF NOT EXISTS food_corrections (
+    id          BIGSERIAL PRIMARY KEY,
+    dish        TEXT NOT NULL,
+    kcal        INTEGER NOT NULL,
+    source_fb   BIGINT,                     -- id записи calorie_feedback
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 """
 
 
@@ -281,4 +325,35 @@ async def create_promo(code: str, kind: str, value: int,
                    max_uses=EXCLUDED.max_uses, expires_at=EXCLUDED.expires_at,
                    active=TRUE""",
             code, kind, value, max_uses, expires_at,
+        )
+
+
+# ---------------------------------------------------- обратная связь / платежи
+
+async def add_bug_report(user_id, username, description, media_type, file_id) -> int:
+    async with _pool.acquire() as conn:
+        return await conn.fetchval(
+            """INSERT INTO bug_reports (user_id, username, description, media_type, file_id)
+               VALUES ($1, $2, $3, $4, $5) RETURNING id""",
+            user_id, username, description, media_type, file_id,
+        )
+
+
+async def add_calorie_feedback(user_id, username, dish, correct_kcal,
+                               media_type, file_id) -> int:
+    async with _pool.acquire() as conn:
+        return await conn.fetchval(
+            """INSERT INTO calorie_feedback
+                   (user_id, username, dish, correct_kcal, media_type, file_id)
+               VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
+            user_id, username, dish, correct_kcal, media_type, file_id,
+        )
+
+
+async def record_payment(user_id, payload, amount_stars, charge_id) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO payments (user_id, payload, amount_stars, charge_id)
+               VALUES ($1, $2, $3, $4)""",
+            user_id, payload, amount_stars, charge_id,
         )

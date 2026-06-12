@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% set active = 'analytics' %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>{% endblock %}
+{% block content %}
+<h1>📊 Аналитика</h1>
+
+<div class="cards">
+  <div class="card"><div class="label">Всего пользователей</div><div class="value">{{ s.total_users }}</div>
+    <div class="sub">+{{ s.new_today }} сегодня · +{{ s.new_7d }} за 7д · +{{ s.new_30d }} за 30д</div></div>
+  <div class="card"><div class="label">DAU / WAU / MAU</div><div class="value">{{ s.dau }} / {{ s.wau }} / {{ s.mau }}</div>
+    <div class="sub">Stickiness (DAU/MAU): {{ s.stickiness }}%</div></div>
+  <div class="card"><div class="label">Приёмов пищи</div><div class="value">{{ s.entries_today }}</div>
+    <div class="sub">сегодня · {{ s.entries_7d }} за 7д</div></div>
+  <div class="card"><div class="label">Premium активно</div><div class="value">{{ s.premium_active }}</div>
+    <div class="sub">платящих всего: {{ s.paying_users }}</div></div>
+  <div class="card"><div class="label">Конверсия в оплату</div><div class="value">{{ s.conversion }}%</div>
+    <div class="sub">платящие / все</div></div>
+  <div class="card"><div class="label">Выручка (звёзды)</div><div class="value">{{ s.stars_total }}★</div>
+    <div class="sub">≈ ${{ s.usd_total }} всего · {{ s.stars_30d }}★ (≈${{ s.usd_30d }}) за 30д</div></div>
+  <div class="card"><div class="label">Открытых багов</div><div class="value">{{ s.open_bugs }}</div></div>
+  <div class="card"><div class="label">Замечаний по калориям</div><div class="value">{{ s.open_cal }}</div></div>
+</div>
+
+<div class="grid2">
+  <div class="chart-box"><h3 style="margin:0 0 10px">Новые пользователи (14 дней)</h3><canvas id="cNew"></canvas></div>
+  <div class="chart-box"><h3 style="margin:0 0 10px">Приёмы пищи (14 дней)</h3><canvas id="cEntries"></canvas></div>
+</div>
+
+<script>
+  const labels = {{ labels|tojson }};
+  const opts = { plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#9aa3b2'}},y:{ticks:{color:'#9aa3b2'},beginAtZero:true}} };
+  new Chart(document.getElementById('cNew'), {type:'bar',
+    data:{labels, datasets:[{data:{{ new_users_series|tojson }}, backgroundColor:'#4ade80'}]}, options:opts});
+  new Chart(document.getElementById('cEntries'), {type:'line',
+    data:{labels, datasets:[{data:{{ entries_series|tojson }}, borderColor:'#5bb8f5', tension:.3}]}, options:opts});
+</script>
+{% endblock %}

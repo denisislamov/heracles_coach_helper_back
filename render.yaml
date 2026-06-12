@@ -37,7 +37,7 @@ services:
       - key: FREE_DAILY_AI
         value: "5"
       - key: SUBSCRIPTION_PRICE_STARS
-        value: "300"
+        value: "150"
       - key: SUBSCRIPTION_DAYS
         value: "30"
       - key: TRIAL_DAYS

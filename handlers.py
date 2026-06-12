@@ -447,7 +447,10 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
 
     elif data == "set_tz":
-        await q.edit_message_text("🌍 Часовой пояс:", reply_markup=kb.tz_menu())
+        await q.edit_message_text(
+            f"🌍 Текущий пояс: *{kb.tz_display(user['timezone'])}*.\n"
+            "Выбери смещение от UTC — по нему бот считает «день» и шлёт отчёты:",
+            parse_mode="Markdown", reply_markup=kb.tz_menu())
     elif data.startswith("tz:"):
         await db.update_settings(uid, timezone=data.split(":", 1)[1])
         reports.schedule_user(context.application, await db.get_user(uid))

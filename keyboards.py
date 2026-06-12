@@ -1,9 +1,36 @@
 """Инлайн-клавиатуры и тексты меню."""
+import datetime as _dt
+
+import pytz
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import payments
 
 WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+
+# Часовые пояса: целые смещения UTC от −12 до +14 — уникальны, покрывают весь мир.
+_TZ_OFFSETS = list(range(-12, 15))
+
+
+def _etc_name(h: int) -> str:
+    # POSIX-нотация инвертирует знак: Etc/GMT-3 == UTC+3.
+    return "Etc/GMT" if h == 0 else f"Etc/GMT{-h:+d}"
+
+
+def _offset_label(h: int) -> str:
+    return "UTC+0" if h == 0 else (f"UTC+{h}" if h > 0 else f"UTC{h}")
+
+
+def tz_display(tzname: str) -> str:
+    """Человеко-понятное смещение для любого хранимого имени пояса (UTC+3 и т.п.)."""
+    try:
+        off = pytz.timezone(tzname).utcoffset(_dt.datetime.utcnow())
+        mins = int(off.total_seconds() // 60)
+        h, m = divmod(abs(mins), 60)
+        sign = "+" if mins >= 0 else "-"
+        return f"UTC{sign}{h}:{m:02d}" if m else f"UTC{sign}{h}"
+    except Exception:
+        return tzname
 
 
 def main_menu() -> InlineKeyboardMarkup:
@@ -28,7 +55,7 @@ def settings_menu(user) -> InlineKeyboardMarkup:
                               callback_data="set_hour")],
         [InlineKeyboardButton(f"📆 День нед. отчёта: {WEEKDAYS[user['weekly_dow']]}",
                               callback_data="set_dow")],
-        [InlineKeyboardButton(f"🌍 Часовой пояс: {user['timezone']}", callback_data="set_tz")],
+        [InlineKeyboardButton(f"🌍 Часовой пояс: {tz_display(user['timezone'])}", callback_data="set_tz")],
         [InlineKeyboardButton(f"Дневной отчёт: {daily}", callback_data="toggle_daily"),
          InlineKeyboardButton(f"Недельный: {weekly}", callback_data="toggle_weekly")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="menu")],
@@ -52,12 +79,15 @@ def dow_menu() -> InlineKeyboardMarkup:
 
 
 def tz_menu() -> InlineKeyboardMarkup:
-    zones = [
-        "Europe/Moscow", "Europe/Kaliningrad", "Europe/Samara",
-        "Asia/Yekaterinburg", "Asia/Tbilisi", "Asia/Almaty",
-        "Europe/Kyiv", "Europe/Minsk", "Asia/Yerevan", "UTC",
-    ]
-    rows = [[InlineKeyboardButton(z, callback_data=f"tz:{z}")] for z in zones]
+    """Сетка смещений UTC: уникальные, весь мир, по 4 в ряд — аккуратно."""
+    rows, row = [], []
+    for h in _TZ_OFFSETS:
+        row.append(InlineKeyboardButton(_offset_label(h), callback_data=f"tz:{_etc_name(h)}"))
+        if len(row) == 4:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
     rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="settings")])
     return InlineKeyboardMarkup(rows)
 

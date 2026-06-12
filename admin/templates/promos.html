@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% set active = 'promos' %}
+{% block content %}
+<h1>🎟 Промокоды</h1>
+
+<div class="card" style="margin-bottom:22px">
+  <h3 style="margin:0 0 12px">Создать / обновить промокод</h3>
+  <form method="post" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+    <input type="hidden" name="action" value="create">
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Код</label>
+      <input name="code" placeholder="FREEMONTH" required style="text-transform:uppercase">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Тип</label>
+      <select name="kind" id="kind">
+        <option value="premium_days">Дни Premium</option>
+        <option value="credits">Анализы (кредиты)</option>
+      </select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Значение</label>
+      <input name="value" id="value" type="number" min="1" value="30" style="width:90px">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Лимит активаций</label>
+      <input name="max_uses" type="number" min="1" value="100" style="width:90px">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Действует до (опц.)</label>
+      <input name="expires_at" type="date">
+    </div>
+    <button class="primary" type="submit">Создать</button>
+  </form>
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" onclick="preset('FREEMONTH','premium_days',30)">⚡ Бесплатный месяц (30 дней)</button>
+    <button type="button" onclick="preset('FREEWEEK','premium_days',7)">7 дней Premium</button>
+    <button type="button" onclick="preset('TRY10','credits',10)">10 анализов</button>
+  </div>
+  <p class="muted" style="margin-top:8px">«Бесплатный месяц» = тип «Дни Premium», значение 30. Пользователь активирует в боте: <code>/promo КОД</code>.</p>
+</div>
+
+{% if rows %}
+<table>
+  <tr><th>Код</th><th>Тип</th><th>Значение</th><th>Активаций</th><th>До</th><th>Статус</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td><b>{{ r.code }}</b></td>
+    <td>{{ 'дни Premium' if r.kind=='premium_days' else 'анализы' }}</td>
+    <td>{{ r.value }}</td>
+    <td>{{ r.used }} / {{ r.max_uses }}</td>
+    <td class="muted">{{ r.expires_at.strftime('%d.%m.%Y') if r.expires_at else '—' }}</td>
+    <td><span class="badge {{ 'done' if r.active else 'new' }}">{{ 'активен' if r.active else 'выключен' }}</span></td>
+    <td>
+      <form method="post"><input type="hidden" name="action" value="toggle">
+        <input type="hidden" name="code" value="{{ r.code }}">
+        <button type="submit">{{ 'Выключить' if r.active else 'Включить' }}</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Промокодов пока нет.</p>
+{% endif %}
+
+<script>
+  function preset(code, kind, value){
+    document.querySelector('[name=code]').value = code;
+    document.getElementById('kind').value = kind;
+    document.getElementById('value').value = value;
+  }
+</script>
+{% endblock %}

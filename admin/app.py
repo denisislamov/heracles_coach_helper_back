@@ -171,6 +171,45 @@ def calorie_feedback():
     return render_template("calorie_feedback.html", rows=rows, corrections=corrections)
 
 
+# ----------------------------------------------------------------- Промокоды
+@app.route("/promos", methods=["GET", "POST"])
+@login_required
+def promos():
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "toggle":
+            execute("UPDATE promo_codes SET active = NOT active WHERE code=%s",
+                    (request.form["code"],))
+        elif action == "create":
+            code = request.form.get("code", "").strip().upper()
+            kind = request.form.get("kind", "premium_days")
+            try:
+                value = int(request.form.get("value", "0"))
+                max_uses = int(request.form.get("max_uses", "1"))
+            except ValueError:
+                flash("Значение и лимит должны быть числами")
+                return redirect(url_for("promos"))
+            expires = request.form.get("expires_at") or None
+            if not code or value <= 0 or kind not in ("premium_days", "credits"):
+                flash("Заполни код, тип и положительное значение")
+                return redirect(url_for("promos"))
+            try:
+                execute(
+                    """INSERT INTO promo_codes (code, kind, value, max_uses, expires_at)
+                       VALUES (%s,%s,%s,%s,%s)
+                       ON CONFLICT (code) DO UPDATE
+                       SET kind=EXCLUDED.kind, value=EXCLUDED.value,
+                           max_uses=EXCLUDED.max_uses, expires_at=EXCLUDED.expires_at,
+                           active=TRUE""",
+                    (code, kind, value, max_uses, expires))
+                flash(f"Промокод {code} сохранён")
+            except Exception as e:
+                flash(f"Не удалось сохранить: {e}")
+        return redirect(url_for("promos"))
+    rows = query("SELECT * FROM promo_codes ORDER BY code")
+    return render_template("promos.html", rows=rows)
+
+
 # ----------------------------------------------------------------- прокси медиа
 @app.route("/media/<file_id>")
 @login_required

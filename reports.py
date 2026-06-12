@@ -25,18 +25,16 @@ def _progress_bar(consumed: int, goal: int, width: int = 10) -> str:
     return "▓" * filled + "░" * (width - filled)
 
 
-async def build_daily_text(user) -> str:
-    tz = user["timezone"]
-    day = _today(tz)
-    entries = await db.day_entries(user["user_id"], day)
+def format_daily(user, day, entries) -> str:
+    """Текст дневного отчёта по уже загруженным записям (с нумерацией)."""
     total = sum(e["calories"] for e in entries)
     goal = user["goal"] or 0
 
     lines = [f"📊 *Дневной отчёт за {day.strftime('%d.%m.%Y')}*", ""]
     if entries:
-        for e in entries:
+        for i, e in enumerate(entries, 1):
             name = e["item"] or "приём пищи"
-            lines.append(f"• {name} — {e['calories']} ккал")
+            lines.append(f"{i}. {name} — {e['calories']} ккал")
     else:
         lines.append("_Записей за день нет._")
     lines.append("")
@@ -50,6 +48,12 @@ async def build_daily_text(user) -> str:
     else:
         lines.append(f"Итого: *{total}* ккал (цель не задана)")
     return "\n".join(lines)
+
+
+async def build_daily_text(user) -> str:
+    day = _today(user["timezone"])
+    entries = await db.day_entries(user["user_id"], day)
+    return format_daily(user, day, entries)
 
 
 async def build_weekly_text(user) -> str:

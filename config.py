@@ -39,3 +39,23 @@ RUN_MODE = os.environ.get("RUN_MODE", "webhook").lower()
 DEFAULT_TIMEZONE = os.environ.get("DEFAULT_TIMEZONE", "Europe/Moscow")
 DEFAULT_DAILY_HOUR = int(os.environ.get("DEFAULT_DAILY_HOUR", "21"))   # час дневного отчёта
 DEFAULT_WEEKLY_DOW = int(os.environ.get("DEFAULT_WEEKLY_DOW", "6"))    # 0=пн .. 6=вс
+
+# --- Монетизация (Telegram Stars) ---
+# Сколько ИИ-анализов в день бесплатно (до пэйвола).
+FREE_DAILY_AI = int(os.environ.get("FREE_DAILY_AI", "5"))
+# Цена месячной подписки Premium в звёздах (валюта XTR). 1 ⭐ ≈ пара центов.
+SUBSCRIPTION_PRICE_STARS = int(os.environ.get("SUBSCRIPTION_PRICE_STARS", "250"))
+# Длительность подписки в днях.
+SUBSCRIPTION_DAYS = int(os.environ.get("SUBSCRIPTION_DAYS", "30"))
+# Контакт поддержки (для /paysupport и /terms).
+SUPPORT_CONTACT = os.environ.get("SUPPORT_CONTACT", "@your_support")
+
+# ID администраторов (через запятую) — кому доступна команда /addpromo.
+ADMIN_IDS = {int(x) for x in os.environ.get("ADMIN_IDS", "").replace(" ", "").split(",") if x}
+
+# Тестовая среда Telegram (бесплатные звёзды, платежи понарошку).
+# Включается переменной TELEGRAM_TEST_ENV=1. python-telegram-bot строит URL как
+# base_url + token + "/" + endpoint, поэтому для тестовой среды (.../bot<token>/test/<method>)
+# достаточно добавить "/test" к токену.
+TELEGRAM_TEST_ENV = os.environ.get("TELEGRAM_TEST_ENV", "0").lower() in ("1", "true", "yes")
+EFFECTIVE_TOKEN = BOT_TOKEN + "/test" if TELEGRAM_TEST_ENV else BOT_TOKEN

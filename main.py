@@ -3,11 +3,12 @@ import logging
 
 from telegram import Update
 from telegram.ext import (Application, CommandHandler, MessageHandler,
-                          CallbackQueryHandler, filters)
+                          CallbackQueryHandler, PreCheckoutQueryHandler, filters)
 
 import config
 import db
 import handlers
+import payments
 import reports
 
 logging.basicConfig(
@@ -28,9 +29,11 @@ async def _post_shutdown(application: Application) -> None:
 
 
 def build_app() -> Application:
+    if config.TELEGRAM_TEST_ENV:
+        log.info("РЕЖИМ ТЕСТОВОЙ СРЕДЫ Telegram включён (звёзды бесплатные).")
     app = (
         Application.builder()
-        .token(config.BOT_TOKEN)
+        .token(config.EFFECTIVE_TOKEN)   # +"/test" в тестовой среде
         .post_init(_post_init)
         .post_shutdown(_post_shutdown)
         .build()
@@ -39,8 +42,16 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("start", handlers.start))
     app.add_handler(CommandHandler(["menu", "settings"], handlers.menu))
     app.add_handler(CommandHandler("help", handlers.help_cmd))
+    app.add_handler(CommandHandler("premium", payments.premium_cmd))
+    app.add_handler(CommandHandler("promo", payments.promo_cmd))
+    app.add_handler(CommandHandler("addpromo", payments.addpromo_cmd))
+    app.add_handler(CommandHandler("terms", payments.terms_cmd))
+    app.add_handler(CommandHandler("paysupport", payments.paysupport_cmd))
     app.add_handler(MessageHandler(filters.PHOTO, handlers.on_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.on_text))
+    # Платежи Telegram Stars
+    app.add_handler(PreCheckoutQueryHandler(payments.on_pre_checkout))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, payments.on_successful_payment))
     app.add_handler(CallbackQueryHandler(handlers.on_callback))
     return app
 

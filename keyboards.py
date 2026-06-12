@@ -9,6 +9,7 @@ def main_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("📊 Сегодня", callback_data="today"),
          InlineKeyboardButton("📅 Неделя", callback_data="week")],
         [InlineKeyboardButton("🎯 Изменить цель", callback_data="set_goal")],
+        [InlineKeyboardButton("⭐ Premium", callback_data="premium")],
         [InlineKeyboardButton("⚙️ Настройки", callback_data="settings")],
     ])
 
@@ -53,6 +54,27 @@ def tz_menu() -> InlineKeyboardMarkup:
     ]
     rows = [[InlineKeyboardButton(z, callback_data=f"tz:{z}")] for z in zones]
     rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="settings")])
+    return InlineKeyboardMarkup(rows)
+
+
+def entry_actions(entry_id: int) -> InlineKeyboardMarkup:
+    """Кнопки под залогированным приёмом пищи — исправить или удалить."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✏️ Исправить", callback_data=f"fix:{entry_id}"),
+         InlineKeyboardButton("🗑 Удалить", callback_data=f"del:{entry_id}")],
+    ])
+
+
+def day_manage(entries) -> InlineKeyboardMarkup:
+    """Клавиатура управления записями за день: у каждой — правка и удаление."""
+    rows = []
+    for i, e in enumerate(entries, 1):
+        name = (e["item"] or "приём")[:18]
+        rows.append([
+            InlineKeyboardButton(f"✏️ {i}. {name}", callback_data=f"fix:{e['id']}"),
+            InlineKeyboardButton("🗑", callback_data=f"ddel:{e['id']}"),
+        ])
+    rows.append([InlineKeyboardButton("⬅️ В меню", callback_data="menu")])
     return InlineKeyboardMarkup(rows)
 
 

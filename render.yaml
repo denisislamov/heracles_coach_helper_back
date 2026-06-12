@@ -29,6 +29,19 @@ services:
         value: "21"
       - key: DEFAULT_WEEKLY_DOW
         value: "6"
+      # --- Монетизация (Telegram Stars) ---
+      - key: FREE_DAILY_AI
+        value: "5"
+      - key: SUBSCRIPTION_PRICE_STARS
+        value: "250"
+      - key: SUBSCRIPTION_DAYS
+        value: "30"
+      - key: SUPPORT_CONTACT
+        sync: false            # укажи свой контакт поддержки
+      - key: ADMIN_IDS
+        sync: false            # твой Telegram user_id (для /addpromo)
+      - key: TELEGRAM_TEST_ENV
+        value: "0"             # в проде всегда 0
 
 databases:
   - name: zhiromer-db

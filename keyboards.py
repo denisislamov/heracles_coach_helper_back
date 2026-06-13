@@ -98,8 +98,9 @@ def goal_mode_menu() -> InlineKeyboardMarkup:
 
 def setup_method_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 Посчитать за меня", callback_data="calc_profile")],
-        [InlineKeyboardButton("✍️ Введу цель сам", callback_data="manual_goal")],
+        [InlineKeyboardButton("📊 Настроить профиль (точнее)", callback_data="calc_profile")],
+        [InlineKeyboardButton("🤝 Довериться нам", callback_data="trust_default")],
+        [InlineKeyboardButton("✍️ Ввести цель вручную", callback_data="manual_goal")],
     ])
 
 

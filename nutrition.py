@@ -47,6 +47,14 @@ def macro_goals(calorie_goal_kcal: int, goal_mode: str, weight_kg: int = None) -
             round(calorie_goal_kcal * c / 4))
 
 
+DEFAULT_GOAL_BY_MODE = {"lose": 1800, "maintain": 2200, "gain": 2600}
+
+
+def default_goal(goal_mode: str) -> int:
+    """Стандартная калорийная цель под режим, если пользователь «доверился нам»."""
+    return DEFAULT_GOAL_BY_MODE.get(goal_mode, 2000)
+
+
 def goals_for_user(user) -> tuple:
     """Цели Б/Ж/У для пользователя: явные из профиля или авто из цели/режима/веса."""
     if user.get("protein_goal"):

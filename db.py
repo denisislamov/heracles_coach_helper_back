@@ -122,6 +122,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS activity   TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS protein_goal INTEGER;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS fat_goal     INTEGER;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS carb_goal    INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarded    BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Утверждённые правки калорийности (на будущее — для уточнения распознавания).
 CREATE TABLE IF NOT EXISTS food_corrections (
@@ -195,7 +196,7 @@ async def update_settings(user_id: int, **fields) -> None:
     """Обновить произвольные поля настроек: timezone, daily_hour, weekly_dow, daily_on, weekly_on."""
     allowed = {"timezone", "daily_hour", "weekly_dow", "daily_on", "weekly_on", "goal",
                "reminders_on", "reminder_interval", "goal_mode",
-               "protein_goal", "fat_goal", "carb_goal"}
+               "protein_goal", "fat_goal", "carb_goal", "onboarded"}
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:
         return

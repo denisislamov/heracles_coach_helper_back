@@ -148,21 +148,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text(), parse_mode="Markdown")
     if trial_note:
         await update.message.reply_text(trial_note)
-    if user["goal"]:
-        context.user_data["awaiting"] = "goal"
-        await update.message.reply_text(
-            f"🎯 Твоя текущая цель: *{user['goal']} ккал/день*.\n"
-            "Пришли новое число, чтобы изменить, или оставь текущую.",
-            parse_mode="Markdown",
-            reply_markup=kb.keep_goal(user["goal"]),
-        )
-    else:
+    if not user["onboarded"]:
         # Онбординг: сначала режим цели, затем способ задать калории.
         context.user_data["onboarding"] = True
         context.user_data["awaiting"] = "goal_mode"
         await update.message.reply_text(
             "Для начала выбери свою *цель*:", parse_mode="Markdown",
             reply_markup=kb.goal_mode_menu())
+    else:
+        await update.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
 
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -432,6 +426,7 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _finish_goal_setup(update, context):
     """После установки цели: при онбординге — спросить напоминания, иначе — меню."""
+    await db.update_settings(update.effective_user.id, onboarded=True)
     if context.user_data.pop("onboarding", False):
         await update.effective_message.reply_text(
             "🔔 Включить напоминания? Если засидишься, бот мягко напомнит "
@@ -659,6 +654,18 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "manual_goal":
         context.user_data["awaiting"] = "goal"
         await q.edit_message_text("🎯 Пришли число дневной цели (ккал, напр. 2000):")
+    elif data == "trust_default":
+        u = await db.get_user(uid)
+        goal = nutrition.default_goal(u["goal_mode"] or "lose")
+        await db.set_goal(uid, goal)
+        u = await db.get_user(uid)
+        reports.schedule_user(context.application, u)
+        p, f, c = nutrition.goals_for_user(u)
+        await q.edit_message_text(
+            f"🤝 Поставил стандартную цель под твой режим: *{goal} ккал/день* "
+            f"(Б {p} · Ж {f} · У {c} г). Изменить можно в /menu → Настройки.",
+            parse_mode="Markdown")
+        await _finish_goal_setup(update, context)
     elif data == "set_profile":
         context.user_data["prof"] = {}
         context.user_data["awaiting"] = "prof_sex"

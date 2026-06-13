@@ -88,11 +88,16 @@ async def estimate_food(image_bytes: Optional[bytes] = None,
     data.setdefault("items", [])
     data.setdefault("note", "")
     if include_macros:
+        items = data.get("items") or []
         for key in ("protein_g", "fat_g", "carb_g"):
-            try:
-                data[key] = int(round(float(data.get(key) or 0)))
-            except (TypeError, ValueError):
-                data[key] = 0
+            def _num(v):
+                try:
+                    return int(round(float(v or 0)))
+                except (TypeError, ValueError):
+                    return 0
+            items_sum = sum(_num(it.get(key)) for it in items)
+            # берём сумму по позициям, если она есть; иначе — итог верхнего уровня
+            data[key] = items_sum if items_sum > 0 else _num(data.get(key))
     return data
 
 

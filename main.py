@@ -1,4 +1,5 @@
 """Точка входа. На Render запускается в режиме webhook, локально — polling."""
+import asyncio
 import logging
 
 from telegram import BotCommand, Update
@@ -11,6 +12,7 @@ import handlers
 import payments
 import reminders
 import reports
+import version
 
 PUBLIC_COMMANDS = [
     BotCommand("start", "Запуск и настройка"),
@@ -36,10 +38,38 @@ async def _post_init(application: Application) -> None:
     await application.bot.set_my_commands(PUBLIC_COMMANDS)
     await reports.schedule_all(application)
     await reminders.schedule_all(application)
+    await _maybe_announce_changelog(application)
     # подхватывать смену настроек (монетизация/лимиты) из админки раз в минуту
     application.job_queue.run_repeating(payments.refresh_settings_job, interval=60, first=60)
     log.info("БД инициализирована, отчёты запланированы. Монетизация: %s, free=%s/день %s дней",
              payments.monetization_enabled(), payments.free_daily_ai(), payments.free_period_days())
+
+
+async def _broadcast_changelog(context) -> None:
+    """Разослать заметки об обновлении всем пользователям (бережно к лимитам)."""
+    notes = context.job.data
+    text = (f"🆕 *Жиромер обновился до v{version.VERSION}*\n\nЧто нового:\n"
+            + "\n".join(f"• {n}" for n in notes))
+    sent = 0
+    for user in await db.all_users():
+        try:
+            await context.bot.send_message(user["user_id"], text, parse_mode="Markdown")
+            sent += 1
+            await asyncio.sleep(0.05)  # ~20 сообщений/сек — в пределах лимитов
+        except Exception:
+            pass  # заблокировавшие бота и пр. — пропускаем
+    log.info("Changelog v%s разослан %s пользователям", version.VERSION, sent)
+
+
+async def _maybe_announce_changelog(application: Application) -> None:
+    last = await db.get_setting("announced_version")
+    if last == version.VERSION:
+        return
+    notes = version.latest_notes()
+    # Первый запуск с этой системой (нет записи) — не спамим, просто фиксируем версию.
+    if last is not None and notes:
+        application.job_queue.run_once(_broadcast_changelog, when=10, data=notes)
+    await db.set_setting("announced_version", version.VERSION)
 
 
 async def _post_shutdown(application: Application) -> None:
@@ -60,6 +90,7 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("start", handlers.start))
     app.add_handler(CommandHandler(["menu", "settings"], handlers.menu))
     app.add_handler(CommandHandler("help", handlers.help_cmd))
+    app.add_handler(CommandHandler("version", handlers.version_cmd))
     app.add_handler(CommandHandler("feedback", handlers.feedback_cmd))
     app.add_handler(CommandHandler("premium", payments.premium_cmd))
     app.add_handler(CommandHandler("cancelsub", payments.cancelsub_cmd))

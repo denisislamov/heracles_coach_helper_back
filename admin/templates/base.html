@@ -53,6 +53,7 @@
     <a href="{{ url_for('assistant') }}" class="{{ 'active' if active=='assistant' }}">🤖 Помощник</a>
     <a href="{{ url_for('settings') }}" class="{{ 'active' if active=='settings' }}">⚙️ Настройки</a>
   </nav>
+  <span class="muted" style="font-size:12px;">v{{ app_version }}</span>
   <a href="{{ url_for('logout') }}" class="logout">Выйти →</a>
 </header>
 {% endif %}

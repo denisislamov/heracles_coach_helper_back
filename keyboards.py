@@ -37,6 +37,7 @@ def main_menu() -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton("📊 Сегодня", callback_data="today"),
          InlineKeyboardButton("📅 Неделя", callback_data="week")],
+        [InlineKeyboardButton("🗓 Добавить за другой день", callback_data="pickdate")],
         [InlineKeyboardButton("🎯 Изменить цель", callback_data="set_goal")],
     ]
     if payments.monetization_enabled():
@@ -111,15 +112,34 @@ def tz_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def entry_actions(entry_id: int) -> InlineKeyboardMarkup:
+def entry_actions(entry_id: int, backdated: bool = False) -> InlineKeyboardMarkup:
     """Кнопки под залогированным приёмом пищи — исправить или удалить."""
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✏️ Исправить", callback_data=f"fix:{entry_id}"),
-         InlineKeyboardButton("🗑 Удалить", callback_data=f"del:{entry_id}")],
-    ])
+    rows = [[InlineKeyboardButton("✏️ Исправить", callback_data=f"fix:{entry_id}"),
+             InlineKeyboardButton("🗑 Удалить", callback_data=f"del:{entry_id}")]]
+    if backdated:
+        rows.append([InlineKeyboardButton("↩️ Вернуться к сегодня", callback_data="date_today")])
+    return InlineKeyboardMarkup(rows)
 
 
-def day_manage(entries) -> InlineKeyboardMarkup:
+def backdate_menu(today) -> InlineKeyboardMarkup:
+    """Выбор дня для записи задним числом: быстрые варианты + последние дни."""
+    def cb(d):
+        return f"setdate:{d.isoformat()}"
+    rows = [[
+        InlineKeyboardButton("Сегодня", callback_data=cb(today)),
+        InlineKeyboardButton("Вчера", callback_data=cb(today - _dt.timedelta(days=1))),
+        InlineKeyboardButton("Позавчера", callback_data=cb(today - _dt.timedelta(days=2))),
+    ]]
+    row = []
+    for i in range(3, 8):
+        d = today - _dt.timedelta(days=i)
+        row.append(InlineKeyboardButton(d.strftime("%d.%m"), callback_data=cb(d)))
+    rows.append(row)
+    rows.append([InlineKeyboardButton("⬅️ В меню", callback_data="menu")])
+    return InlineKeyboardMarkup(rows)
+
+
+def day_manage(entries, backdated: bool = False) -> InlineKeyboardMarkup:
     """Клавиатура управления записями за день: у каждой — правка и удаление."""
     rows = []
     for i, e in enumerate(entries, 1):
@@ -128,6 +148,8 @@ def day_manage(entries) -> InlineKeyboardMarkup:
             InlineKeyboardButton(f"✏️ {i}. {name}", callback_data=f"fix:{e['id']}"),
             InlineKeyboardButton("🗑", callback_data=f"ddel:{e['id']}"),
         ])
+    if backdated:
+        rows.append([InlineKeyboardButton("↩️ Вернуться к сегодня", callback_data="date_today")])
     rows.append([InlineKeyboardButton("⬅️ В меню", callback_data="menu")])
     return InlineKeyboardMarkup(rows)
 

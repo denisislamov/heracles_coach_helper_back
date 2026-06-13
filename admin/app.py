@@ -29,8 +29,15 @@ STAR_USD = float(os.environ.get("STAR_USD", "0.013"))  # курс звезды �
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL_ADMIN = os.environ.get("OPENAI_MODEL_ADMIN", "gpt-4o-mini")
 
+APP_VERSION = "1.5.0"  # версия админки (синхронизируй с version.py бота)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-please")
+
+
+@app.context_processor
+def inject_version():
+    return {"app_version": APP_VERSION}
 
 
 # ----------------------------------------------------------------- БД-хелперы

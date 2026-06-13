@@ -17,18 +17,33 @@ import keyboards as kb
 import payments
 import reminders
 import reports
+import version
 
 log = logging.getLogger("calbot.handlers")
 
 # Текст-«число калорий»: «350», «+200», «350 ккал»
 _NUM_RE = re.compile(r"^\+?\s*(\d{1,5})\s*(ккал|kcal|кал|cal)?$", re.IGNORECASE)
 
-def welcome_text() -> str:
-    premium_line = (
-        f"Бесплатно {payments.free_daily_ai()} анализа в день первые "
-        f"{payments.free_period_days()} дней, дальше — /premium.\n"
-        if payments.monetization_enabled() else "")
+def _plans_table() -> str:
+    """Компактная таблица Free vs Premium (моноширинный блок)."""
+    fd = payments.free_daily_ai()
+    fp = payments.free_period_days()
+    price = config.SUBSCRIPTION_PRICE_STARS
     return (
+        "\nТарифы:\n"
+        "```\n"
+        "                 Free        Premium\n"
+        f"Анализов в день  {str(fd):<11} без лимита\n"
+        f"Доступ           {str(fp)+' дн.':<11} всегда\n"
+        "Точность ИИ      базовая     высокая\n"
+        "Распознавание    gpt-4o-mini gpt-4o\n"
+        "```"
+        f"Premium — {price}★/мес. Подробнее: /premium\n"
+    )
+
+
+def welcome_text() -> str:
+    base = (
         "👋 Привет! Я *Жиромер* — помогу считать калории.\n\n"
         "Что я умею:\n"
         "• 📷 Пришли *фото еды* — оценю калорийность.\n"
@@ -37,9 +52,11 @@ def welcome_text() -> str:
         "• 🔢 Просто число (напр. `350`) — добавлю столько ккал вручную.\n\n"
         "Ошибся? Под каждой записью кнопки *✏️ Исправить* и *🗑 Удалить*.\n"
         "В конце дня пришлю дневной отчёт, раз в неделю — недельный.\n"
-        f"{premium_line}"
         "Меню — /menu."
     )
+    if payments.monetization_enabled():
+        base += "\n" + _plans_table()
+    return base
 
 
 def _today(user) -> dt.date:
@@ -106,6 +123,7 @@ async def _run_estimate(update, user, mode, image_bytes=None, caption=None):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
+    context.user_data.pop("entry_date", None)  # сбрасываем «другой день»
     inserted = await db.ensure_user(u.id, u.username)
     trial_note = None
     if inserted and payments.monetization_enabled() and config.TRIAL_DAYS > 0:
@@ -142,6 +160,14 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text(), parse_mode="Markdown")
 
 
+async def version_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    notes = version.latest_notes()
+    txt = f"🤖 *Жиромер* v{version.VERSION}"
+    if notes:
+        txt += "\n\nПоследние изменения:\n" + "\n".join(f"• {n}" for n in notes)
+    await update.message.reply_text(txt, parse_mode="Markdown")
+
+
 async def feedback_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.ensure_user(update.effective_user.id, update.effective_user.username)
     await update.message.reply_text(
@@ -163,13 +189,24 @@ async def on_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ----------------------------------------------------- логирование приёма пищи
 
-def _progress_line(total: int, goal: int) -> str:
-    """Строка с дневным итогом и прогрессом к цели."""
+def _active_date(context, user) -> dt.date:
+    """Дата, в которую пишем приёмы: выбранный «другой день» или сегодня."""
+    iso = context.user_data.get("entry_date") if context else None
+    if iso:
+        try:
+            return dt.date.fromisoformat(iso)
+        except ValueError:
+            pass
+    return _today(user)
+
+
+def _progress_line(total: int, goal: int, label: str = "Сегодня") -> str:
+    """Строка с итогом дня и прогрессом к цели."""
     if not goal:
-        return f"Сегодня всего: *{total}* ккал. Цель не задана — /menu."
+        return f"{label} всего: *{total}* ккал. Цель не задана — /menu."
     remaining = goal - total
     bar = reports._progress_bar(total, goal)
-    line = f"Сегодня: *{total}* / {goal} ккал\n{bar}\n"
+    line = f"{label}: *{total}* / {goal} ккал\n{bar}\n"
     line += (f"Осталось *{remaining}* ккал." if remaining >= 0
              else f"⚠️ Превышение на *{-remaining}* ккал.")
     return line
@@ -189,22 +226,26 @@ async def _maybe_advice(update, user, day, total, goal):
 
 async def _log_and_reply(update, context, calories: int, item: str):
     user = await db.get_user(update.effective_user.id)
-    day = _today(user)
+    day = _active_date(context, user)
+    backdated = day != _today(user)
     entry_id = await db.add_entry(user["user_id"], calories, item, day)
     total = await db.day_total(user["user_id"], day)
     goal = user["goal"] or 0
 
-    msg = f"✅ Записал: *{item}* — {calories} ккал.\n" + _progress_line(total, goal)
+    label = "Сегодня" if not backdated else day.strftime("%d.%m")
+    head = (f"✅ Записал: *{item}* — {calories} ккал.\n" if not backdated
+            else f"✅ Записал за *{day.strftime('%d.%m.%Y')}*: *{item}* — {calories} ккал.\n")
+    msg = head + _progress_line(total, goal, label)
     await update.effective_message.reply_text(
-        msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id))
+        msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id, backdated))
     await _maybe_advice(update, user, day, total, goal)
 
 
-async def _reply_after_edit(update, user, entry_id: int, item: str, calories: int):
-    day = _today(user)
+async def _reply_after_edit(update, user, entry_id: int, item: str, calories: int, day):
     total = await db.day_total(user["user_id"], day)
     goal = user["goal"] or 0
-    msg = f"✏️ Обновил: *{item}* — {calories} ккал.\n" + _progress_line(total, goal)
+    label = "Сегодня" if day == _today(user) else day.strftime("%d.%m")
+    msg = f"✏️ Обновил: *{item}* — {calories} ккал.\n" + _progress_line(total, goal, label)
     await update.effective_message.reply_text(
         msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id))
     await _maybe_advice(update, user, day, total, goal)
@@ -226,7 +267,7 @@ async def _handle_fix_input(update, context, text: str):
     if m:
         new_cal = int(m.group(1))
         await db.update_entry(entry_id, uid, new_cal, entry["item"])
-        await _reply_after_edit(update, user, entry_id, entry["item"], new_cal)
+        await _reply_after_edit(update, user, entry_id, entry["item"], new_cal, entry["entry_date"])
         return
 
     # вариант 2: уточнение текстом — пересчёт через ИИ (лимит НЕ списываем, это правка)
@@ -242,7 +283,7 @@ async def _handle_fix_input(update, context, text: str):
         return
     item = ", ".join(i.get("name", "") for i in result.get("items", [])) or text[:50]
     await db.update_entry(entry_id, uid, result["calories"], item)
-    await _reply_after_edit(update, user, entry_id, item, result["calories"])
+    await _reply_after_edit(update, user, entry_id, item, result["calories"], entry["entry_date"])
     note = result.get("note", "")
     if note:
         await update.message.reply_text(f"🔎 {note}")
@@ -350,14 +391,18 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --------------------------------------------------------- инлайн-кнопки
 
-async def _render_day_view(q, user):
-    """Показать дневной отчёт с кнопками правки/удаления каждой записи (на месте)."""
-    day = reports._today(user["timezone"])
+async def _render_day_view(q, user, day=None):
+    """Показать отчёт за день с кнопками правки/удаления (на месте)."""
+    today = reports._today(user["timezone"])
+    day = day or today
     entries = await db.day_entries(user["user_id"], day)
     text = reports.format_daily(user, day, entries)
+    if day != today:
+        text += ("\n\n🗓 Это прошлый день. Фото/текст/число, отправленные сейчас, "
+                 "добавятся в эту дату. Чтобы вернуться к сегодня — кнопка ниже.")
     try:
         await q.edit_message_text(
-            text, parse_mode="Markdown", reply_markup=kb.day_manage(entries))
+            text, parse_mode="Markdown", reply_markup=kb.day_manage(entries, day != today))
     except BadRequest as e:
         if "not modified" not in str(e).lower():
             raise
@@ -445,12 +490,32 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text("Главное меню:", reply_markup=kb.main_menu())
 
     elif data == "today":
-        await _render_day_view(q, user)
+        context.user_data.pop("entry_date", None)
+        await _render_day_view(q, user, _today(user))
+
+    elif data == "pickdate":
+        await q.edit_message_text(
+            "🗓 За какой день добавить? Выбери дату — следующие фото/текст пойдут в неё:",
+            reply_markup=kb.backdate_menu(_today(user)))
+
+    elif data.startswith("setdate:"):
+        iso = data.split(":", 1)[1]
+        chosen = dt.date.fromisoformat(iso)
+        if chosen == _today(user):
+            context.user_data.pop("entry_date", None)
+        else:
+            context.user_data["entry_date"] = iso
+        await _render_day_view(q, user, chosen)
+
+    elif data == "date_today":
+        context.user_data.pop("entry_date", None)
+        await q.edit_message_text("↩️ Снова работаем с сегодняшней датой.")
+        await q.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
 
     elif data.startswith("ddel:"):
         entry_id = int(data.split(":")[1])
         await db.delete_entry(entry_id, uid)
-        await _render_day_view(q, user)
+        await _render_day_view(q, user, _active_date(context, user))
 
     elif data == "week":
         text = await reports.build_weekly_text(user)

@@ -229,10 +229,12 @@ def _progress_line(total: int, goal: int, label: str = "Сегодня") -> str:
 
 
 async def _macro_progress_line(user, day) -> str:
-    """Строка прогресса по Б/Ж/У за день (только если КБЖУ доступен)."""
+    """Строка прогресса по Б/Ж/У за день (только если КБЖУ доступен и есть данные)."""
     if not payments.macros_enabled(user):
         return ""
     m = await db.day_macros(user["user_id"], day)
+    if not (m["protein"] or m["fat"] or m["carb"]):
+        return ""  # нет данных по макросам — не показываем нули
     pg, fg, cg = nutrition.goals_for_user(user)
     return f"\nБ {m['protein']}/{pg} · Ж {m['fat']}/{fg} · У {m['carb']}/{cg} г"
 
@@ -277,7 +279,7 @@ async def _log_and_reply(update, context, calories: int, item: str, result: dict
     label = "Сегодня" if not backdated else day.strftime("%d.%m")
     head = (f"✅ Записал: *{item}* — {calories} ккал.\n" if not backdated
             else f"✅ Записал за *{day.strftime('%d.%m.%Y')}*: *{item}* — {calories} ккал.\n")
-    if p is not None:
+    if p is not None and (p or f or c):
         head = head.rstrip("\n") + f"  (Б {p} · Ж {f} · У {c} г)\n"
     msg = head + _progress_line(total, goal, label) + await _macro_progress_line(user, day)
     await update.effective_message.reply_text(
@@ -735,13 +737,15 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "rem_on":
         await db.update_settings(uid, reminders_on=True)
         reminders.schedule_user(context.application, await db.get_user(uid))
-        await q.edit_message_text("🔔 Напоминания включены. Поехали!")
-        await q.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
+        await q.edit_message_text(
+            "🔔 Напоминания включены. Готово! 🍽 Пришли фото еды или опиши блюдо — "
+            "посчитаю калории. Меню — /menu.")
     elif data == "rem_off":
         await db.update_settings(uid, reminders_on=False)
         reminders.schedule_user(context.application, await db.get_user(uid))
-        await q.edit_message_text("🔕 Хорошо, без напоминаний. Включить можно в /menu → Настройки.")
-        await q.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
+        await q.edit_message_text(
+            "🔕 Без напоминаний (включить можно в /menu → Настройки). Готово! "
+            "🍽 Пришли фото еды или опиши блюдо — посчитаю калории. Меню — /menu.")
     elif data == "toggle_rem":
         await db.update_settings(uid, reminders_on=not user["reminders_on"])
         reminders.schedule_user(context.application, await db.get_user(uid))

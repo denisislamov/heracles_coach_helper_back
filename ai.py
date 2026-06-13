@@ -17,7 +17,7 @@ def _client_for(api_key: Optional[str]):
     """Клиент с ключом пользователя (BYOK) или общий клиент бота."""
     return AsyncOpenAI(api_key=api_key) if api_key else _client
 
-_SYSTEM = (
+_RULES = (
     "Ты — нутрициолог-ассистент, оцениваешь калорийность съеденного по фото и/или "
     "описанию. Важно: люди и модели систематически ЗАНИЖАЮТ калории. Поэтому:\n"
     "• учитывай скрытые калории: масло для жарки, сливочное масло, заправки, соусы, "
@@ -26,18 +26,27 @@ _SYSTEM = (
     "размеры порций; НЕ занижай порцию;\n"
     "• считай для обычного приготовления, не предполагай «диетическое» без явных причин;\n"
     "• при неопределённости выбирай оценку ближе к ВЕРХНЕЙ границе разумного диапазона.\n"
+)
+
+# Схема ответа без макросов и с макросами (поля Б/Ж/У встроены прямо в схему!).
+_SCHEMA_BASE = (
     "Всегда отвечай ТОЛЬКО валидным JSON без markdown по схеме:\n"
-    '{"calories": <int итог, ближе к верхней границе>, '
-    '"items": [{"name": <str>, "calories": <int>, "grams": <int примерная масса>}], '
-    '"note": <str кратко по-русски: можно указать диапазон и ключевые допущения>}'
+    '{"calories": <int итог>, '
+    '"items": [{"name": <str>, "calories": <int>, "grams": <int>}], '
+    '"note": <str кратко по-русски>}'
+)
+_SCHEMA_MACROS = (
+    "Всегда отвечай ТОЛЬКО валидным JSON без markdown по схеме (ОБЯЗАТЕЛЬНО заполни "
+    "protein_g/fat_g/carb_g для каждой позиции и итог, в граммах, ~4/9/4 ккал на грамм):\n"
+    '{"calories": <int итог>, "protein_g": <int>, "fat_g": <int>, "carb_g": <int>, '
+    '"items": [{"name": <str>, "calories": <int>, "grams": <int>, '
+    '"protein_g": <int>, "fat_g": <int>, "carb_g": <int>}], '
+    '"note": <str кратко по-русски>}'
 )
 
 
-_MACROS_INSTR = (
-    "\nДополнительно оцени макронутриенты: для каждого блюда и итог укажи белки "
-    "(protein_g), жиры (fat_g) и углеводы (carb_g) в граммах, согласованные с массой "
-    "порции и калорийностью (примерно 4/9/4 ккал на грамм Б/Ж/У)."
-)
+def _system_prompt(include_macros: bool) -> str:
+    return _RULES + (_SCHEMA_MACROS if include_macros else _SCHEMA_BASE)
 
 
 async def estimate_food(image_bytes: Optional[bytes] = None,
@@ -54,7 +63,7 @@ async def estimate_food(image_bytes: Optional[bytes] = None,
     include_macros — просить также белки/жиры/углеводы.
     Возвращает dict: {calories:int, items:list, note:str[, protein_g, fat_g, carb_g]}.
     """
-    system = _SYSTEM + (_MACROS_INSTR if include_macros else "")
+    system = _system_prompt(include_macros)
     content = []
     user_text = caption.strip() if caption else ""
     if user_text:

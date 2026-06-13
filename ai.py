@@ -33,18 +33,28 @@ _SYSTEM = (
 )
 
 
+_MACROS_INSTR = (
+    "\nДополнительно оцени макронутриенты: для каждого блюда и итог укажи белки "
+    "(protein_g), жиры (fat_g) и углеводы (carb_g) в граммах, согласованные с массой "
+    "порции и калорийностью (примерно 4/9/4 ккал на грамм Б/Ж/У)."
+)
+
+
 async def estimate_food(image_bytes: Optional[bytes] = None,
                         caption: Optional[str] = None,
                         model: Optional[str] = None,
                         api_key: Optional[str] = None,
-                        detail: str = "low") -> dict:
-    """Оценить калорийность по фото и/или тексту.
+                        detail: str = "low",
+                        include_macros: bool = False) -> dict:
+    """Оценить калорийность (и опц. КБЖУ) по фото и/или тексту.
 
     model   — какую модель использовать (по умолчанию config.OPENAI_MODEL);
     api_key — ключ пользователя (BYOK); если задан — запрос идёт через него;
-    detail  — детализация фото: "high" точнее (дороже), "low" дешевле.
-    Возвращает dict: {calories:int, items:list, note:str}.
+    detail  — детализация фото: "high" точнее (дороже), "low" дешевле;
+    include_macros — просить также белки/жиры/углеводы.
+    Возвращает dict: {calories:int, items:list, note:str[, protein_g, fat_g, carb_g]}.
     """
+    system = _SYSTEM + (_MACROS_INSTR if include_macros else "")
     content = []
     user_text = caption.strip() if caption else ""
     if user_text:
@@ -65,11 +75,11 @@ async def estimate_food(image_bytes: Optional[bytes] = None,
     resp = await _client_for(api_key).chat.completions.create(
         model=model or config.OPENAI_MODEL,
         messages=[
-            {"role": "system", "content": _SYSTEM},
+            {"role": "system", "content": system},
             {"role": "user", "content": content},
         ],
         response_format={"type": "json_object"},
-        max_tokens=500,
+        max_tokens=600,
         temperature=0.2,
     )
     data = json.loads(resp.choices[0].message.content)
@@ -77,18 +87,43 @@ async def estimate_food(image_bytes: Optional[bytes] = None,
     data["calories"] = int(round(float(data.get("calories", 0))))
     data.setdefault("items", [])
     data.setdefault("note", "")
+    if include_macros:
+        for key in ("protein_g", "fat_g", "carb_g"):
+            try:
+                data[key] = int(round(float(data.get(key) or 0)))
+            except (TypeError, ValueError):
+                data[key] = 0
     return data
 
 
-async def diet_advice(goal: int, consumed: int, items_today: list) -> str:
-    """Совет по диете, когда пользователь близок к цели или превысил её."""
+_GOAL_MODE_HINT = {
+    "lose": "Цель — похудение (дефицит калорий). Если близко к лимиту или превышение — "
+            "посоветуй, что урезать/чем заменить.",
+    "maintain": "Цель — поддержание веса. Помоги держаться в коридоре калорий.",
+    "gain": "Цель — набор массы (профицит). Если калорий/белка не добирает — посоветуй, "
+            "что добавить (сложные углеводы, белок).",
+}
+
+
+async def diet_advice(goal: int, consumed: int, items_today: list,
+                      goal_mode: str = "lose", macros: dict = None,
+                      macro_goals: dict = None) -> str:
+    """Совет по питанию с учётом режима цели и (опц.) дефицита макросов."""
     remaining = goal - consumed
     items_str = ", ".join(items_today[-10:]) if items_today else "нет данных"
+    macro_line = ""
+    if macros and macro_goals:
+        macro_line = (
+            f" Макросы за день: белки {macros.get('protein',0)}/{macro_goals.get('protein','?')} г, "
+            f"жиры {macros.get('fat',0)}/{macro_goals.get('fat','?')} г, "
+            f"углеводы {macros.get('carb',0)}/{macro_goals.get('carb','?')} г. "
+            "Если какого-то нутриента сильно не хватает — подскажи продукты."
+        )
     prompt = (
-        f"Дневная цель: {goal} ккал. Уже съедено: {consumed} ккал "
-        f"(остаток {remaining}). Что ел сегодня: {items_str}. "
-        "Дай 1–2 коротких практичных совета по-русски: чем заменить или что "
-        "скорректировать (например, сладкое — фруктами), чтобы остаться в рамках цели. "
+        f"{_GOAL_MODE_HINT.get(goal_mode, _GOAL_MODE_HINT['lose'])} "
+        f"Дневная цель: {goal} ккал. Уже съедено: {consumed} ккал (остаток {remaining}). "
+        f"Что ел сегодня: {items_str}.{macro_line} "
+        "Дай 1–2 коротких практичных совета по-русски в духе цели. "
         "Без вступлений, дружелюбно, до 400 символов."
     )
     resp = await _client.chat.completions.create(

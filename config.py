@@ -52,6 +52,10 @@ FREE_DAILY_AI = int(os.environ.get("FREE_DAILY_AI", "3"))
 FREE_PERIOD_DAYS = int(os.environ.get("FREE_PERIOD_DAYS", "30"))
 # Цена месячной подписки Premium в звёздах (валюта XTR). 1 ⭐ ≈ пара центов.
 SUBSCRIPTION_PRICE_STARS = int(os.environ.get("SUBSCRIPTION_PRICE_STARS", "200"))
+# Цена тарифа Premium+КБЖУ (макросы), звёзды.
+SUBSCRIPTION_MACROS_PRICE_STARS = int(os.environ.get("SUBSCRIPTION_MACROS_PRICE_STARS", "300"))
+# Показывать ли тариф КБЖУ вообще (можно выключить); реальное значение — из settings.
+MACROS_TIER_ENABLED = os.environ.get("MACROS_TIER_ENABLED", "1").lower() in ("1", "true", "yes")
 # Длительность подписки в днях. Для нативной подписки Telegram = ровно 30 (2592000 c).
 SUBSCRIPTION_DAYS = int(os.environ.get("SUBSCRIPTION_DAYS", "30"))
 # Период автопродления подписки Telegram Stars в секундах (Telegram принимает только 2592000).

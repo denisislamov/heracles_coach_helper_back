@@ -18,12 +18,15 @@ import db
 log = logging.getLogger("calbot.payments")
 
 PREMIUM_PAYLOAD = "premium_sub"
+MACROS_PAYLOAD = "premium_macros_sub"   # подписка Premium+КБЖУ
 PACK_PREFIX = "credits:"   # payload пакета кредитов: "credits:<n>"
 
 # Рантайм-настройки (settings в БД), меняются из админки и кэшируются в процессе.
 SETTING_MONETIZATION = "monetization_enabled"
 SETTING_FREE_DAILY = "free_daily_ai"
 SETTING_FREE_PERIOD = "free_period_days"
+SETTING_MACROS_TIER = "macros_tier_enabled"
+SETTING_MACROS_PRICE = "macros_price"
 _settings: dict = {}  # пустой → используем дефолты из ENV
 
 
@@ -39,6 +42,18 @@ def free_period_days() -> int:
     return _settings.get("free_period", config.FREE_PERIOD_DAYS)
 
 
+def macros_tier_enabled() -> bool:
+    return _settings.get("macros_tier", config.MACROS_TIER_ENABLED)
+
+
+def macros_price() -> int:
+    return _settings.get("macros_price", config.SUBSCRIPTION_MACROS_PRICE_STARS)
+
+
+def _truthy(v):
+    return v is not None and v.strip() in ("1", "true", "yes", "on")
+
+
 async def refresh_settings() -> None:
     """Подтянуть настройки из БД в кэш (старт + по таймеру)."""
     global _settings
@@ -46,12 +61,16 @@ async def refresh_settings() -> None:
         mon = await db.get_setting(SETTING_MONETIZATION)
         fd = await db.get_setting(SETTING_FREE_DAILY)
         fp = await db.get_setting(SETTING_FREE_PERIOD)
+        mt = await db.get_setting(SETTING_MACROS_TIER)
+        mp = await db.get_setting(SETTING_MACROS_PRICE)
     except Exception:
         return
     s = {}
-    s["mon"] = (mon.strip() in ("1", "true", "yes", "on")) if mon is not None else config.MONETIZATION_ENABLED
+    s["mon"] = _truthy(mon) if mon is not None else config.MONETIZATION_ENABLED
     s["free_daily"] = int(fd) if (fd and fd.strip().isdigit()) else config.FREE_DAILY_AI
     s["free_period"] = int(fp) if (fp and fp.strip().isdigit()) else config.FREE_PERIOD_DAYS
+    s["macros_tier"] = _truthy(mt) if mt is not None else config.MACROS_TIER_ENABLED
+    s["macros_price"] = int(mp) if (mp and mp.strip().isdigit()) else config.SUBSCRIPTION_MACROS_PRICE_STARS
     _settings = s
 
 
@@ -80,6 +99,22 @@ def within_free_period(user, now: dt.datetime = None) -> bool:
     if not created:
         return True
     return (now - created) <= dt.timedelta(days=free_period_days())
+
+
+def user_plan(user) -> str:
+    """Текущий активный план: free | premium | premium_plus."""
+    if is_premium(user) and (user.get("plan") in ("premium", "premium_plus")):
+        return user["plan"]
+    return "free"
+
+
+def macros_enabled(user) -> bool:
+    """Доступен ли КБЖУ: при выключенной монетизации — всем; иначе — только premium_plus."""
+    if not macros_tier_enabled():
+        return False
+    if not monetization_enabled():
+        return True
+    return user_plan(user) == "premium_plus"
 
 
 def access_mode(user, today: dt.date) -> str:
@@ -140,6 +175,9 @@ def remaining_text(user, today: dt.date) -> str:
 def paywall_keyboard() -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(
         f"⭐ Premium — {config.SUBSCRIPTION_PRICE_STARS}★/мес", callback_data="buy_premium")]]
+    if macros_tier_enabled():
+        rows.append([InlineKeyboardButton(
+            f"🥗 Premium+КБЖУ — {macros_price()}★/мес", callback_data="buy_premium_macros")])
     for credits, stars in config.CREDIT_PACKS:
         rows.append([InlineKeyboardButton(
             f"📦 {credits} анализов — {stars}★", callback_data=f"buy_pack:{credits}")])
@@ -186,6 +224,28 @@ async def send_premium_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE)
     )
 
 
+async def send_macros_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Подписка Premium+КБЖУ с автопродлением."""
+    price = macros_price()
+    link = await context.bot.create_invoice_link(
+        title="Premium+КБЖУ (автопродление)",
+        description="Всё из Premium + белки/жиры/углеводы по каждому приёму, цели по "
+                    "макросам и советы по их дефициту. Списывается раз в 30 дней.",
+        payload=MACROS_PAYLOAD,
+        currency="XTR",
+        prices=[LabeledPrice(label="Premium+КБЖУ / мес", amount=price)],
+        subscription_period=config.SUBSCRIPTION_PERIOD_SEC,
+    )
+    await context.bot.send_message(
+        chat_id,
+        f"🥗 *Premium+КБЖУ* — {price}★ в месяц, автопродление.\n"
+        "Отменить можно в Telegram → Настройки → Подписки или командой /cancelsub.",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
+            f"Оформить за {price}★/мес", url=link)]]),
+    )
+
+
 async def send_pack_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE,
                             credits: int, stars: int) -> None:
     """Разовый пакет анализов (без автопродления)."""
@@ -202,7 +262,8 @@ async def send_pack_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE,
 
 async def on_pre_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.pre_checkout_query
-    if q.invoice_payload == PREMIUM_PAYLOAD or q.invoice_payload.startswith(PACK_PREFIX):
+    p = q.invoice_payload
+    if p in (PREMIUM_PAYLOAD, MACROS_PAYLOAD) or p.startswith(PACK_PREFIX):
         await q.answer(ok=True)
     else:
         await q.answer(ok=False, error_message="Неизвестный товар, оплата отменена.")
@@ -221,7 +282,9 @@ async def on_successful_payment(update: Update, context: ContextTypes.DEFAULT_TY
     if not is_new:
         return
 
-    if payload == PREMIUM_PAYLOAD:
+    if payload in (PREMIUM_PAYLOAD, MACROS_PAYLOAD):
+        plan = "premium_plus" if payload == MACROS_PAYLOAD else "premium"
+        await db.set_plan(uid, plan)
         exp = getattr(sp, "subscription_expiration_date", None)
         if exp:
             await db.set_premium_until(uid, exp)
@@ -233,13 +296,15 @@ async def on_successful_payment(update: Update, context: ContextTypes.DEFAULT_TY
             await db.set_sub_charge_id(uid, charge_id)
         user = await db.get_user(uid)
         until = user["premium_until"].strftime("%d.%m.%Y") if user["premium_until"] else "—"
+        name = "Premium+КБЖУ" if plan == "premium_plus" else "Premium"
         if getattr(sp, "is_recurring", False) and not getattr(sp, "is_first_recurring", False):
             await update.message.reply_text(
-                f"🔄 Подписка продлена. Premium активен до *{until}*.", parse_mode="Markdown")
+                f"🔄 Подписка продлена. *{name}* активен до *{until}*.", parse_mode="Markdown")
         else:
+            extra = " Теперь в анализах и отчётах есть Б/Ж/У 🥗" if plan == "premium_plus" else ""
             await update.message.reply_text(
-                f"✅ Спасибо! *Premium* активен до *{until}* (автопродление). "
-                "Анализы без лимита 🎉", parse_mode="Markdown")
+                f"✅ Спасибо! *{name}* активен до *{until}* (автопродление). "
+                f"Анализы без лимита 🎉{extra}", parse_mode="Markdown")
 
     elif payload.startswith(PACK_PREFIX):
         n = int(payload[len(PACK_PREFIX):])
@@ -327,9 +392,11 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "📈 *Статистика*\n"
         f"Пользователей всего: {s['total_users']}\n"
         f"Новых за 7 дней: {s['new_7d']}\n"
-        f"Активных Premium: {s['premium_active']}\n"
+        f"Активных Premium: {s['premium_active']} "
+        f"(базовый {s['premium_basic_active']} / +КБЖУ {s['premium_plus_active']})\n"
         f"Платежей за 30 дней: {s['payments_30d']}\n"
         f"Выручка за 30 дней: {s['stars_30d']}★ (≈ ${usd})\n"
+        f"  • Premium: {s['stars_30d_basic']}★ · Premium+КБЖУ: {s['stars_30d_plus']}★\n"
         f"Активаций промокодов: {s['promo_redemptions']}",
         parse_mode="Markdown")
 
@@ -373,8 +440,14 @@ async def apply_promo(update: Update, context: ContextTypes.DEFAULT_TYPE, code: 
         return
     if res["kind"] == "premium_days":
         await db.grant_premium_days(uid, res["value"])
+        await db.set_plan(uid, "premium")
         await update.effective_message.reply_text(
             f"🎉 Промокод активирован: +{res['value']} дней Premium!")
+    elif res["kind"] == "premium_plus_days":
+        await db.grant_premium_days(uid, res["value"])
+        await db.set_plan(uid, "premium_plus")
+        await update.effective_message.reply_text(
+            f"🎉 Промокод активирован: +{res['value']} дней Premium+КБЖУ!")
     elif res["kind"] == "credits":
         await db.add_credits(uid, res["value"])
         await update.effective_message.reply_text(

@@ -108,6 +108,21 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS openai_key_enc TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reminders_on      BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reminder_interval INTEGER NOT NULL DEFAULT 5;
 
+-- КБЖУ: макросы по приёмам, план тарифа, режим цели, профиль и макро-цели.
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS protein_g INTEGER;
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS fat_g     INTEGER;
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS carb_g    INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan       TEXT NOT NULL DEFAULT 'free';   -- free|premium|premium_plus
+ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_mode  TEXT NOT NULL DEFAULT 'lose';   -- lose|maintain|gain
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sex        TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS age        INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS height_cm  INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS weight_kg  INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS activity   TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS protein_goal INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS fat_goal     INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS carb_goal    INTEGER;
+
 -- Утверждённые правки калорийности (на будущее — для уточнения распознавания).
 CREATE TABLE IF NOT EXISTS food_corrections (
     id          BIGSERIAL PRIMARY KEY,
@@ -179,7 +194,8 @@ async def set_goal(user_id: int, goal: int) -> None:
 async def update_settings(user_id: int, **fields) -> None:
     """Обновить произвольные поля настроек: timezone, daily_hour, weekly_dow, daily_on, weekly_on."""
     allowed = {"timezone", "daily_hour", "weekly_dow", "daily_on", "weekly_on", "goal",
-               "reminders_on", "reminder_interval"}
+               "reminders_on", "reminder_interval", "goal_mode",
+               "protein_goal", "fat_goal", "carb_goal"}
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:
         return
@@ -192,14 +208,26 @@ async def update_settings(user_id: int, **fields) -> None:
 
 # ----------------------------------------------------------------- приёмы пищи
 
-async def add_entry(user_id: int, calories: int, item: str, entry_date: date) -> int:
-    """Добавить приём пищи, вернуть id созданной записи."""
+async def add_entry(user_id: int, calories: int, item: str, entry_date: date,
+                    protein_g: int = None, fat_g: int = None, carb_g: int = None) -> int:
+    """Добавить приём пищи (с опциональными макросами), вернуть id записи."""
     async with _pool.acquire() as conn:
         return await conn.fetchval(
-            """INSERT INTO entries (user_id, entry_date, calories, item)
-               VALUES ($1, $2, $3, $4) RETURNING id""",
-            user_id, entry_date, calories, item,
+            """INSERT INTO entries (user_id, entry_date, calories, item, protein_g, fat_g, carb_g)
+               VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""",
+            user_id, entry_date, calories, item, protein_g, fat_g, carb_g,
         )
+
+
+async def day_macros(user_id: int, entry_date: date) -> dict:
+    """Сумма Б/Ж/У за день (нули, если не задано)."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT COALESCE(SUM(protein_g),0) p, COALESCE(SUM(fat_g),0) f,
+                      COALESCE(SUM(carb_g),0) c
+               FROM entries WHERE user_id=$1 AND entry_date=$2""",
+            user_id, entry_date)
+        return {"protein": int(row["p"]), "fat": int(row["f"]), "carb": int(row["c"])}
 
 
 async def get_entry(entry_id: int, user_id: int) -> Optional[asyncpg.Record]:
@@ -240,7 +268,7 @@ async def day_total(user_id: int, entry_date: date) -> int:
 async def day_entries(user_id: int, entry_date: date) -> list:
     async with _pool.acquire() as conn:
         return await conn.fetch(
-            """SELECT id, item, calories, created_at FROM entries
+            """SELECT id, item, calories, protein_g, fat_g, carb_g, created_at FROM entries
                WHERE user_id=$1 AND entry_date=$2 ORDER BY created_at""",
             user_id, entry_date,
         )
@@ -448,6 +476,26 @@ async def clear_openai_key(user_id: int) -> None:
             "UPDATE users SET openai_key_enc=NULL WHERE user_id=$1", user_id)
 
 
+async def set_plan(user_id: int, plan: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("UPDATE users SET plan=$2 WHERE user_id=$1", user_id, plan)
+
+
+async def set_profile(user_id: int, sex, age, height_cm, weight_kg, activity) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE users SET sex=$2, age=$3, height_cm=$4, weight_kg=$5, activity=$6
+               WHERE user_id=$1""",
+            user_id, sex, age, height_cm, weight_kg, activity)
+
+
+async def set_macro_goals(user_id: int, protein: int, fat: int, carb: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET protein_goal=$2, fat_goal=$3, carb_goal=$4 WHERE user_id=$1",
+            user_id, protein, fat, carb)
+
+
 async def get_setting(key: str) -> Optional[str]:
     async with _pool.acquire() as conn:
         return await conn.fetchval("SELECT value FROM settings WHERE key=$1", key)
@@ -469,7 +517,11 @@ async def admin_stats() -> dict:
                  (SELECT count(*) FROM users) AS total_users,
                  (SELECT count(*) FROM users WHERE created_at >= now() - interval '7 days') AS new_7d,
                  (SELECT count(*) FROM users WHERE premium_until > now()) AS premium_active,
+                 (SELECT count(*) FROM users WHERE premium_until > now() AND plan='premium') AS premium_basic_active,
+                 (SELECT count(*) FROM users WHERE premium_until > now() AND plan='premium_plus') AS premium_plus_active,
                  (SELECT count(*) FROM payments WHERE created_at >= now() - interval '30 days' AND NOT is_refunded) AS payments_30d,
                  (SELECT COALESCE(SUM(amount_stars),0) FROM payments WHERE created_at >= now() - interval '30 days' AND NOT is_refunded) AS stars_30d,
+                 (SELECT COALESCE(SUM(amount_stars),0) FROM payments WHERE created_at >= now() - interval '30 days' AND NOT is_refunded AND payload='premium_sub') AS stars_30d_basic,
+                 (SELECT COALESCE(SUM(amount_stars),0) FROM payments WHERE created_at >= now() - interval '30 days' AND NOT is_refunded AND payload='premium_macros_sub') AS stars_30d_plus,
                  (SELECT count(*) FROM redemptions) AS promo_redemptions
             """))

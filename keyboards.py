@@ -62,6 +62,9 @@ def settings_menu(user) -> InlineKeyboardMarkup:
          InlineKeyboardButton(f"Недельный: {weekly}", callback_data="toggle_weekly")],
         [InlineKeyboardButton(f"⏰ Напоминания: {rem}", callback_data="toggle_rem"),
          InlineKeyboardButton(f"каждые {user['reminder_interval']}ч", callback_data="set_rem_int")],
+        [InlineKeyboardButton(f"🏃 Режим: {GOAL_MODE_LABELS.get(user['goal_mode'], '—')}",
+                              callback_data="set_mode"),
+         InlineKeyboardButton("👤 Профиль", callback_data="set_profile")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="menu")],
     ])
 
@@ -79,6 +82,40 @@ def reminders_onboarding() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔔 Включить напоминания", callback_data="rem_on")],
         [InlineKeyboardButton("🔕 Без напоминаний", callback_data="rem_off")],
+    ])
+
+
+GOAL_MODE_LABELS = {"lose": "Похудение", "maintain": "Поддержание", "gain": "Набор массы"}
+
+
+def goal_mode_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔻 Похудение", callback_data="gm:lose")],
+        [InlineKeyboardButton("⚖️ Поддержание", callback_data="gm:maintain")],
+        [InlineKeyboardButton("🔺 Набор массы", callback_data="gm:gain")],
+    ])
+
+
+def setup_method_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 Посчитать за меня", callback_data="calc_profile")],
+        [InlineKeyboardButton("✍️ Введу цель сам", callback_data="manual_goal")],
+    ])
+
+
+def sex_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Мужской", callback_data="psex:male"),
+         InlineKeyboardButton("Женский", callback_data="psex:female")],
+    ])
+
+
+def activity_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Сидячий образ", callback_data="pact:sedentary")],
+        [InlineKeyboardButton("Лёгкая (1–3 р/нед)", callback_data="pact:light")],
+        [InlineKeyboardButton("Средняя (3–5 р/нед)", callback_data="pact:moderate")],
+        [InlineKeyboardButton("Высокая (6–7 р/нед)", callback_data="pact:active")],
     ])
 
 

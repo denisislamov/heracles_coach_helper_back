@@ -11,6 +11,7 @@ import datetime as dt
 import pytz
 
 import db
+import nutrition
 
 
 def _today(tz_name: str) -> dt.date:
@@ -47,6 +48,14 @@ def format_daily(user, day, entries) -> str:
         lines.append(f"{bar}  {status}")
     else:
         lines.append(f"Итого: *{total}* ккал (цель не задана)")
+
+    # Б/Ж/У — показываем, если по дню есть данные макросов (т.е. у КБЖУ-пользователей)
+    mp = sum((e["protein_g"] or 0) for e in entries)
+    mf = sum((e["fat_g"] or 0) for e in entries)
+    mc = sum((e["carb_g"] or 0) for e in entries)
+    if (mp or mf or mc):
+        pg, fg, cg = nutrition.goals_for_user(user)
+        lines.append(f"Б/Ж/У: {mp}/{pg} · {mf}/{fg} · {mc}/{cg} г")
     return "\n".join(lines)
 
 

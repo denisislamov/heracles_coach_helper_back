@@ -14,6 +14,7 @@ import config
 import db
 import feedback
 import keyboards as kb
+import nutrition
 import payments
 import reminders
 import reports
@@ -25,21 +26,29 @@ log = logging.getLogger("calbot.handlers")
 _NUM_RE = re.compile(r"^\+?\s*(\d{1,5})\s*(ккал|kcal|кал|cal)?$", re.IGNORECASE)
 
 def _plans_table() -> str:
-    """Компактная таблица Free vs Premium (моноширинный блок)."""
+    """Компактная таблица тарифов (моноширинный блок)."""
     fd = payments.free_daily_ai()
     fp = payments.free_period_days()
     price = config.SUBSCRIPTION_PRICE_STARS
-    return (
-        "\nТарифы:\n"
-        "```\n"
-        "                 Free        Premium\n"
-        f"Анализов в день  {str(fd):<11} без лимита\n"
-        f"Доступ           {str(fp)+' дн.':<11} всегда\n"
-        "Точность ИИ      базовая     высокая\n"
-        "Распознавание    gpt-4o-mini gpt-4o\n"
-        "```"
-        f"Premium — {price}★/мес. Подробнее: /premium\n"
-    )
+    if payments.macros_tier_enabled():
+        body = (
+            "                 Free   Premium  +КБЖУ\n"
+            f"Анализов в день  {str(fd):<6} ∞        ∞\n"
+            f"Доступ           {str(fp)+'д':<6} всегда   всегда\n"
+            "Точность ИИ      базов. высокая высокая\n"
+            "Б/Ж/У            —      —        ✅\n"
+        )
+        tail = (f"Premium — {price}★/мес, Premium+КБЖУ — {payments.macros_price()}★/мес. "
+                "Подробнее: /premium\n")
+    else:
+        body = (
+            "                 Free        Premium\n"
+            f"Анализов в день  {str(fd):<11} без лимита\n"
+            f"Доступ           {str(fp)+' дн.':<11} всегда\n"
+            "Точность ИИ      базовая     высокая\n"
+        )
+        tail = f"Premium — {price}★/мес. Подробнее: /premium\n"
+    return "\nТарифы:\n```\n" + body + "```" + tail
 
 
 def welcome_text() -> str:
@@ -97,9 +106,11 @@ async def _run_estimate(update, user, mode, image_bytes=None, caption=None):
     model, api_key = payments.ai_params(user, mode)
     # high detail (точнее) для полноценной модели, low — для дешёвой free-модели
     detail = "high" if model == config.OPENAI_MODEL else "low"
+    macros = payments.macros_enabled(user)
     try:
         result = await ai.estimate_food(image_bytes=image_bytes, caption=caption,
-                                        model=model, api_key=api_key, detail=detail)
+                                        model=model, api_key=api_key, detail=detail,
+                                        include_macros=macros)
     except Exception as e:
         if mode == "byok":
             log.warning("BYOK-ключ не сработал, фолбэк на общий: %s", e)
@@ -107,7 +118,8 @@ async def _run_estimate(update, user, mode, image_bytes=None, caption=None):
                 "⚠️ Твой ключ OpenAI не сработал — считаю на общем. Проверь ключ или /delkey.")
             try:
                 result = await ai.estimate_food(image_bytes=image_bytes, caption=caption,
-                                                model=config.OPENAI_MODEL, detail="high")
+                                                model=config.OPENAI_MODEL, detail="high",
+                                                include_macros=macros)
             except Exception as e2:
                 log.exception("Фолбэк тоже не удался: %s", e2)
                 return None
@@ -134,9 +146,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text(), parse_mode="Markdown")
     if trial_note:
         await update.message.reply_text(trial_note)
-    # Всегда запускаем шаг с целью.
-    context.user_data["awaiting"] = "goal"
     if user["goal"]:
+        context.user_data["awaiting"] = "goal"
         await update.message.reply_text(
             f"🎯 Твоя текущая цель: *{user['goal']} ккал/день*.\n"
             "Пришли новое число, чтобы изменить, или оставь текущую.",
@@ -144,11 +155,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=kb.keep_goal(user["goal"]),
         )
     else:
+        # Онбординг: сначала режим цели, затем способ задать калории.
         context.user_data["onboarding"] = True
+        context.user_data["awaiting"] = "goal_mode"
         await update.message.reply_text(
-            "🎯 Для начала укажи *цель по калориям на день* (число, напр. 2000):",
-            parse_mode="Markdown",
-        )
+            "Для начала выбери свою *цель*:", parse_mode="Markdown",
+            reply_markup=kb.goal_mode_menu())
 
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -212,30 +224,58 @@ def _progress_line(total: int, goal: int, label: str = "Сегодня") -> str:
     return line
 
 
+async def _macro_progress_line(user, day) -> str:
+    """Строка прогресса по Б/Ж/У за день (только если КБЖУ доступен)."""
+    if not payments.macros_enabled(user):
+        return ""
+    m = await db.day_macros(user["user_id"], day)
+    pg, fg, cg = nutrition.goals_for_user(user)
+    return f"\nБ {m['protein']}/{pg} · Ж {m['fat']}/{fg} · У {m['carb']}/{cg} г"
+
+
 async def _maybe_advice(update, user, day, total, goal):
-    """Совет по диете при ≥80% цели или превышении."""
-    if goal and total >= 0.8 * goal:
-        entries = await db.day_entries(user["user_id"], day)
-        names = [e["item"] for e in entries if e["item"]]
-        try:
-            advice = await ai.diet_advice(goal, total, names)
-            await update.effective_message.reply_text(f"💡 {advice}")
-        except Exception:
-            pass
+    """Совет по питанию с учётом режима цели и (для КБЖУ) дефицита макросов.
+
+    Срабатывает в обе стороны: похудение/поддержание — при приближении к лимиту;
+    набор — при недоборе калорий.
+    """
+    mode = user["goal_mode"] or "lose"
+    near_limit = goal and total >= 0.8 * goal
+    undereat = goal and mode == "gain" and total <= 0.7 * goal
+    if not (near_limit or undereat):
+        return
+    entries = await db.day_entries(user["user_id"], day)
+    names = [e["item"] for e in entries if e["item"]]
+    macros = macro_goals = None
+    if payments.macros_enabled(user):
+        macros = await db.day_macros(user["user_id"], day)
+        pg, fg, cg = nutrition.goals_for_user(user)
+        macro_goals = {"protein": pg, "fat": fg, "carb": cg}
+    try:
+        advice = await ai.diet_advice(goal, total, names, goal_mode=mode,
+                                      macros=macros, macro_goals=macro_goals)
+        await update.effective_message.reply_text(f"💡 {advice}")
+    except Exception:
+        pass
 
 
-async def _log_and_reply(update, context, calories: int, item: str):
+async def _log_and_reply(update, context, calories: int, item: str, result: dict = None):
     user = await db.get_user(update.effective_user.id)
     day = _active_date(context, user)
     backdated = day != _today(user)
-    entry_id = await db.add_entry(user["user_id"], calories, item, day)
+    p = f = c = None
+    if result and payments.macros_enabled(user):
+        p, f, c = result.get("protein_g"), result.get("fat_g"), result.get("carb_g")
+    entry_id = await db.add_entry(user["user_id"], calories, item, day, p, f, c)
     total = await db.day_total(user["user_id"], day)
     goal = user["goal"] or 0
 
     label = "Сегодня" if not backdated else day.strftime("%d.%m")
     head = (f"✅ Записал: *{item}* — {calories} ккал.\n" if not backdated
             else f"✅ Записал за *{day.strftime('%d.%m.%Y')}*: *{item}* — {calories} ккал.\n")
-    msg = head + _progress_line(total, goal, label)
+    if p is not None:
+        head = head.rstrip("\n") + f"  (Б {p} · Ж {f} · У {c} г)\n"
+    msg = head + _progress_line(total, goal, label) + await _macro_progress_line(user, day)
     await update.effective_message.reply_text(
         msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id, backdated))
     await _maybe_advice(update, user, day, total, goal)
@@ -313,7 +353,7 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await payments.consume(update.effective_user.id, mode, today)
     item = ", ".join(i.get("name", "") for i in result.get("items", [])) or "блюдо с фото"
     note = result.get("note", "")
-    await _log_and_reply(update, context, result["calories"], item)
+    await _log_and_reply(update, context, result["calories"], item, result)
     if note:
         await update.message.reply_text(f"🔎 {note}")
 
@@ -345,16 +385,9 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("awaiting", None)
         user = await db.get_user(update.effective_user.id)
         reports.schedule_user(context.application, user)
-        if context.user_data.pop("onboarding", False):
-            await update.message.reply_text(
-                f"🎯 Цель установлена: *{goal}* ккал/день.\n\n"
-                "🔔 Включить напоминания? Если засидишься, бот мягко напомнит "
-                "записать приём пищи (по умолчанию раз в 5 часов, только днём).",
-                parse_mode="Markdown", reply_markup=kb.reminders_onboarding())
-        else:
-            await update.message.reply_text(
-                f"🎯 Цель установлена: *{goal}* ккал/день.", parse_mode="Markdown",
-                reply_markup=kb.main_menu())
+        await update.message.reply_text(
+            f"🎯 Цель установлена: *{goal}* ккал/день.", parse_mode="Markdown")
+        await _finish_goal_setup(update, context)
         return
 
     if awaiting == "promo":
@@ -364,6 +397,10 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if awaiting == "fix":
         await _handle_fix_input(update, context, text)
+        return
+
+    if awaiting in ("prof_age", "prof_height", "prof_weight"):
+        await _handle_profile_input(update, context, text)
         return
 
     # ручное добавление калорий числом (бесплатно, без лимита)
@@ -383,10 +420,79 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await payments.consume(update.effective_user.id, mode, today)
     item = ", ".join(i.get("name", "") for i in result.get("items", [])) or text[:50]
-    await _log_and_reply(update, context, result["calories"], item)
+    await _log_and_reply(update, context, result["calories"], item, result)
     note = result.get("note", "")
     if note:
         await update.message.reply_text(f"🔎 {note}")
+
+
+# ----------------------------------------------- онбординг: режим цели и профиль
+
+async def _finish_goal_setup(update, context):
+    """После установки цели: при онбординге — спросить напоминания, иначе — меню."""
+    if context.user_data.pop("onboarding", False):
+        await update.effective_message.reply_text(
+            "🔔 Включить напоминания? Если засидишься, бот мягко напомнит "
+            "записать приём пищи (по умолчанию раз в 5 часов, только днём).",
+            reply_markup=kb.reminders_onboarding())
+    else:
+        await update.effective_message.reply_text(
+            "Готово. Главное меню:", reply_markup=kb.main_menu())
+
+
+async def _handle_profile_input(update, context, text: str):
+    """Текстовые шаги мастера профиля: возраст → рост → вес."""
+    awaiting = context.user_data.get("awaiting")
+    prof = context.user_data.setdefault("prof", {})
+    m = re.search(r"\d{2,3}", text)
+    if not m:
+        await update.message.reply_text("Введи число.")
+        return
+    val = int(m.group())
+    if awaiting == "prof_age":
+        if not (10 <= val <= 100):
+            await update.message.reply_text("Возраст должен быть 10–100.")
+            return
+        prof["age"] = val
+        context.user_data["awaiting"] = "prof_height"
+        await update.message.reply_text("Рост в см? (напр. 175)")
+    elif awaiting == "prof_height":
+        if not (120 <= val <= 230):
+            await update.message.reply_text("Рост должен быть 120–230 см.")
+            return
+        prof["height"] = val
+        context.user_data["awaiting"] = "prof_weight"
+        await update.message.reply_text("Вес в кг? (напр. 70)")
+    elif awaiting == "prof_weight":
+        if not (30 <= val <= 300):
+            await update.message.reply_text("Вес должен быть 30–300 кг.")
+            return
+        prof["weight"] = val
+        context.user_data["awaiting"] = "prof_activity"
+        await update.message.reply_text("Уровень активности?", reply_markup=kb.activity_menu())
+
+
+async def _finish_profile(update, context):
+    """Все данные профиля собраны: считаем цель и сохраняем."""
+    uid = update.effective_user.id
+    prof = context.user_data.get("prof", {})
+    user = await db.get_user(uid)
+    mode = user["goal_mode"] or "lose"
+    cal = nutrition.calorie_goal(prof.get("sex"), prof["age"], prof["height"],
+                                 prof["weight"], prof.get("activity"), mode)
+    await db.set_profile(uid, prof.get("sex"), prof["age"], prof["height"],
+                         prof["weight"], prof.get("activity"))
+    await db.set_goal(uid, cal)
+    context.user_data.pop("prof", None)
+    context.user_data.pop("awaiting", None)
+    user = await db.get_user(uid)
+    reports.schedule_user(context.application, user)
+    p, f, c = nutrition.goals_for_user(user)
+    await update.effective_message.reply_text(
+        f"📊 Готово! Рассчитал под твою цель:\n"
+        f"*{cal} ккал/день* · Б {p} · Ж {f} · У {c} г.",
+        parse_mode="Markdown")
+    await _finish_goal_setup(update, context)
 
 
 # --------------------------------------------------------- инлайн-кнопки
@@ -450,6 +556,10 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "buy_premium":
         await q.message.reply_text("Открываю оплату звёздами…")
         await payments.send_premium_invoice(uid, context)
+
+    elif data == "buy_premium_macros":
+        await q.message.reply_text("Открываю оплату звёздами…")
+        await payments.send_macros_invoice(uid, context)
 
     elif data.startswith("buy_pack:"):
         credits = int(data.split(":")[1])
@@ -527,6 +637,37 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "set_goal":
         context.user_data["awaiting"] = "goal"
         await q.edit_message_text("🎯 Пришли новое число цели (ккал/день):")
+
+    # --- режим цели и профиль ---
+    elif data == "set_mode":
+        await q.edit_message_text("🏃 Выбери режим цели:", reply_markup=kb.goal_mode_menu())
+    elif data.startswith("gm:"):
+        await db.update_settings(uid, goal_mode=data.split(":")[1])
+        if context.user_data.get("onboarding"):
+            context.user_data["awaiting"] = "goal_setup"
+            await q.edit_message_text(
+                "Как зададим дневную цель по калориям?", reply_markup=kb.setup_method_menu())
+        else:
+            await q.edit_message_text("⚙️ Настройки:",
+                                      reply_markup=kb.settings_menu(await db.get_user(uid)))
+    elif data == "calc_profile":
+        context.user_data["prof"] = {}
+        context.user_data["awaiting"] = "prof_sex"
+        await q.edit_message_text("Укажи пол:", reply_markup=kb.sex_menu())
+    elif data == "manual_goal":
+        context.user_data["awaiting"] = "goal"
+        await q.edit_message_text("🎯 Пришли число дневной цели (ккал, напр. 2000):")
+    elif data == "set_profile":
+        context.user_data["prof"] = {}
+        context.user_data["awaiting"] = "prof_sex"
+        await q.edit_message_text("Укажи пол:", reply_markup=kb.sex_menu())
+    elif data.startswith("psex:"):
+        context.user_data.setdefault("prof", {})["sex"] = data.split(":")[1]
+        context.user_data["awaiting"] = "prof_age"
+        await q.edit_message_text("Сколько тебе лет? (напр. 30)")
+    elif data.startswith("pact:"):
+        context.user_data.setdefault("prof", {})["activity"] = data.split(":")[1]
+        await _finish_profile(update, context)
 
     elif data == "set_hour":
         await q.edit_message_text("🕘 Час дневного отчёта:", reply_markup=kb.hours_menu())

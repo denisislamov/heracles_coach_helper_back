@@ -40,6 +40,10 @@ services:
         value: "30"            # бесплатный период; меняется в админке
       - key: SUBSCRIPTION_PRICE_STARS
         value: "200"
+      - key: SUBSCRIPTION_MACROS_PRICE_STARS
+        value: "300"            # тариф Premium+КБЖУ
+      - key: MACROS_TIER_ENABLED
+        value: "1"              # дефолт; реально управляется из админки
       - key: SUBSCRIPTION_DAYS
         value: "30"
       - key: TRIAL_DAYS

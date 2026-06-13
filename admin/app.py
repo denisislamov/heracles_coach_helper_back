@@ -29,7 +29,7 @@ STAR_USD = float(os.environ.get("STAR_USD", "0.013"))  # курс звезды �
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL_ADMIN = os.environ.get("OPENAI_MODEL_ADMIN", "gpt-4o-mini")
 
-APP_VERSION = "1.5.0"  # версия админки (синхронизируй с version.py бота)
+APP_VERSION = "1.6.0"  # версия админки (синхронизируй с version.py бота)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-please")
@@ -110,6 +110,8 @@ def collect_stats() -> dict:
         "entries_today": scalar("SELECT count(*) FROM entries WHERE created_at::date = current_date"),
         "entries_7d": scalar("SELECT count(*) FROM entries WHERE created_at >= now() - interval '7 days'"),
         "premium_active": scalar("SELECT count(*) FROM users WHERE premium_until > now()"),
+        "premium_basic_active": scalar("SELECT count(*) FROM users WHERE premium_until > now() AND plan='premium'"),
+        "premium_plus_active": scalar("SELECT count(*) FROM users WHERE premium_until > now() AND plan='premium_plus'"),
         "paying_users": scalar("SELECT count(DISTINCT user_id) FROM payments"),
         "stars_total": scalar("SELECT COALESCE(SUM(amount_stars),0) FROM payments"),
         "stars_30d": scalar("SELECT COALESCE(SUM(amount_stars),0) FROM payments WHERE created_at >= now() - interval '30 days'"),
@@ -239,21 +241,22 @@ def _set_setting(key, value):
 @login_required
 def settings():
     if request.method == "POST":
-        mon = "1" if request.form.get("monetization") == "on" else "0"
-        _set_setting("monetization_enabled", mon)
+        _set_setting("monetization_enabled", "1" if request.form.get("monetization") == "on" else "0")
+        _set_setting("macros_tier_enabled", "1" if request.form.get("macros_tier") == "on" else "0")
         try:
-            fd = max(0, int(request.form.get("free_daily_ai", "3")))
-            fp = max(1, int(request.form.get("free_period_days", "30")))
-            _set_setting("free_daily_ai", fd)
-            _set_setting("free_period_days", fp)
+            _set_setting("free_daily_ai", max(0, int(request.form.get("free_daily_ai", "3"))))
+            _set_setting("free_period_days", max(1, int(request.form.get("free_period_days", "30"))))
+            _set_setting("macros_price", max(1, int(request.form.get("macros_price", "300"))))
         except ValueError:
-            flash("Лимит и период должны быть числами")
+            flash("Числовые поля должны быть числами")
         flash("Настройки сохранены — бот подхватит их в течение минуты")
         return redirect(url_for("settings"))
     cur = {
         "monetization": _get_setting("monetization_enabled", "0") in ("1", "true", "yes", "on"),
+        "macros_tier": _get_setting("macros_tier_enabled", "1") in ("1", "true", "yes", "on"),
         "free_daily_ai": _get_setting("free_daily_ai", "3"),
         "free_period_days": _get_setting("free_period_days", "30"),
+        "macros_price": _get_setting("macros_price", "300"),
     }
     return render_template("settings.html", cur=cur)
 

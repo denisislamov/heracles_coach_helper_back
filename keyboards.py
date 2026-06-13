@@ -39,6 +39,8 @@ def main_menu() -> InlineKeyboardMarkup:
          InlineKeyboardButton("📅 Неделя", callback_data="week")],
         [InlineKeyboardButton("🗓 Добавить за другой день", callback_data="pickdate")],
         [InlineKeyboardButton("🎯 Изменить цель", callback_data="set_goal")],
+        [InlineKeyboardButton("🏃 Режим цели", callback_data="set_mode"),
+         InlineKeyboardButton("👤 Профиль", callback_data="set_profile")],
     ]
     if payments.monetization_enabled():
         rows.append([InlineKeyboardButton("⭐ Premium", callback_data="premium")])
@@ -65,6 +67,7 @@ def settings_menu(user) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(f"🏃 Режим: {GOAL_MODE_LABELS.get(user['goal_mode'], '—')}",
                               callback_data="set_mode"),
          InlineKeyboardButton("👤 Профиль", callback_data="set_profile")],
+        [InlineKeyboardButton("🗑 Начать заново", callback_data="reset")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="menu")],
     ])
 
@@ -93,6 +96,21 @@ def goal_mode_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("🔻 Похудение", callback_data="gm:lose")],
         [InlineKeyboardButton("⚖️ Поддержание", callback_data="gm:maintain")],
         [InlineKeyboardButton("🔺 Набор массы", callback_data="gm:gain")],
+    ])
+
+
+def reset_confirm() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Да, стереть всё", callback_data="reset_yes")],
+        [InlineKeyboardButton("↩️ Отмена", callback_data="menu")],
+    ])
+
+
+def goal_confirm() -> InlineKeyboardMarkup:
+    """Подтвердить рассчитанную цель или изменить вручную."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Подходит", callback_data="goal_ok")],
+        [InlineKeyboardButton("✏️ Изменить цель", callback_data="set_goal")],
     ])
 
 

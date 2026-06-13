@@ -497,6 +497,21 @@ async def set_macro_goals(user_id: int, protein: int, fat: int, carb: int) -> No
             user_id, protein, fat, carb)
 
 
+async def reset_user(user_id: int) -> None:
+    """Стереть историю питания и сбросить цель/профиль/онбординг.
+    Подписка, план и кредиты сохраняются (это оплаченное)."""
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("DELETE FROM entries WHERE user_id=$1", user_id)
+            await conn.execute(
+                """UPDATE users SET goal=NULL, goal_mode='lose',
+                       sex=NULL, age=NULL, height_cm=NULL, weight_kg=NULL, activity=NULL,
+                       protein_goal=NULL, fat_goal=NULL, carb_goal=NULL,
+                       ai_count_date=NULL, ai_count_today=0, onboarded=FALSE
+                   WHERE user_id=$1""",
+                user_id)
+
+
 async def get_setting(key: str) -> Optional[str]:
     async with _pool.acquire() as conn:
         return await conn.fetchval("SELECT value FROM settings WHERE key=$1", key)

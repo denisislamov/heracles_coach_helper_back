@@ -168,6 +168,14 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text(), parse_mode="Markdown")
 
 
+async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await db.ensure_user(update.effective_user.id, update.effective_user.username)
+    await update.message.reply_text(
+        "⚠️ *Начать заново?*\nЭто сотрёт всю историю приёмов пищи и сбросит цель и "
+        "профиль. Подписка сохранится. Действие необратимо.",
+        parse_mode="Markdown", reply_markup=kb.reset_confirm())
+
+
 async def version_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     notes = version.latest_notes()
     txt = f"🤖 *Жиромер* v{version.VERSION}"
@@ -486,10 +494,9 @@ async def _finish_profile(update, context):
     reports.schedule_user(context.application, user)
     p, f, c = nutrition.goals_for_user(user)
     await update.effective_message.reply_text(
-        f"📊 Готово! Рассчитал под твою цель:\n"
-        f"*{cal} ккал/день* · Б {p} · Ж {f} · У {c} г.",
-        parse_mode="Markdown")
-    await _finish_goal_setup(update, context)
+        f"📊 Рассчитал под твою цель: *{cal} ккал/день* · Б {p} · Ж {f} · У {c} г.\n"
+        "Подходит или изменить?",
+        parse_mode="Markdown", reply_markup=kb.goal_confirm())
 
 
 # --------------------------------------------------------- инлайн-кнопки
@@ -523,6 +530,20 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(
             f"🎯 Оставил цель: *{user['goal']} ккал/день*.", parse_mode="Markdown")
         await q.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
+
+    elif data == "reset":
+        await q.edit_message_text(
+            "⚠️ *Начать заново?*\nСотрём всю историю приёмов пищи и сбросим цель и "
+            "профиль. Подписка сохранится. Действие необратимо.",
+            parse_mode="Markdown", reply_markup=kb.reset_confirm())
+    elif data == "reset_yes":
+        await db.reset_user(uid)
+        context.user_data.clear()
+        await q.edit_message_text("🗑 История очищена. Начнём заново!")
+        context.user_data["onboarding"] = True
+        context.user_data["awaiting"] = "goal_mode"
+        await q.message.reply_text(
+            "Выбери свою *цель*:", parse_mode="Markdown", reply_markup=kb.goal_mode_menu())
 
     elif data.startswith("fix:"):
         entry_id = int(data.split(":")[1])
@@ -654,6 +675,9 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "manual_goal":
         context.user_data["awaiting"] = "goal"
         await q.edit_message_text("🎯 Пришли число дневной цели (ккал, напр. 2000):")
+    elif data == "goal_ok":
+        await q.edit_message_text("Отлично! 👍")
+        await _finish_goal_setup(update, context)
     elif data == "trust_default":
         u = await db.get_user(uid)
         goal = nutrition.default_goal(u["goal_mode"] or "lose")
@@ -662,10 +686,9 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reports.schedule_user(context.application, u)
         p, f, c = nutrition.goals_for_user(u)
         await q.edit_message_text(
-            f"🤝 Поставил стандартную цель под твой режим: *{goal} ккал/день* "
-            f"(Б {p} · Ж {f} · У {c} г). Изменить можно в /menu → Настройки.",
-            parse_mode="Markdown")
-        await _finish_goal_setup(update, context)
+            f"🤝 Стандартная цель под твой режим: *{goal} ккал/день* "
+            f"(Б {p} · Ж {f} · У {c} г).\nПодходит или изменить?",
+            parse_mode="Markdown", reply_markup=kb.goal_confirm())
     elif data == "set_profile":
         context.user_data["prof"] = {}
         context.user_data["awaiting"] = "prof_sex"

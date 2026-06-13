@@ -18,23 +18,31 @@ def _client_for(api_key: Optional[str]):
     return AsyncOpenAI(api_key=api_key) if api_key else _client
 
 _SYSTEM = (
-    "Ты — нутрициолог-ассистент. По фото и/или описанию блюда ты оцениваешь "
-    "калорийность съеденного. Если не уверен — давай разумную среднюю оценку, "
-    "не отказывайся. Всегда отвечай ТОЛЬКО валидным JSON без markdown по схеме:\n"
-    '{"calories": <int, итог ккал>, '
-    '"items": [{"name": <str>, "calories": <int>}], '
-    '"note": <str, короткий комментарий по-русски>}'
+    "Ты — нутрициолог-ассистент, оцениваешь калорийность съеденного по фото и/или "
+    "описанию. Важно: люди и модели систематически ЗАНИЖАЮТ калории. Поэтому:\n"
+    "• учитывай скрытые калории: масло для жарки, сливочное масло, заправки, соусы, "
+    "майонез, сахар, сливки, панировку, сироп;\n"
+    "• оцени массу порции в граммах, опираясь на тарелку, столовые приборы и обычные "
+    "размеры порций; НЕ занижай порцию;\n"
+    "• считай для обычного приготовления, не предполагай «диетическое» без явных причин;\n"
+    "• при неопределённости выбирай оценку ближе к ВЕРХНЕЙ границе разумного диапазона.\n"
+    "Всегда отвечай ТОЛЬКО валидным JSON без markdown по схеме:\n"
+    '{"calories": <int итог, ближе к верхней границе>, '
+    '"items": [{"name": <str>, "calories": <int>, "grams": <int примерная масса>}], '
+    '"note": <str кратко по-русски: можно указать диапазон и ключевые допущения>}'
 )
 
 
 async def estimate_food(image_bytes: Optional[bytes] = None,
                         caption: Optional[str] = None,
                         model: Optional[str] = None,
-                        api_key: Optional[str] = None) -> dict:
+                        api_key: Optional[str] = None,
+                        detail: str = "low") -> dict:
     """Оценить калорийность по фото и/или тексту.
 
     model   — какую модель использовать (по умолчанию config.OPENAI_MODEL);
-    api_key — ключ пользователя (BYOK); если задан — запрос идёт через него.
+    api_key — ключ пользователя (BYOK); если задан — запрос идёт через него;
+    detail  — детализация фото: "high" точнее (дороже), "low" дешевле.
     Возвращает dict: {calories:int, items:list, note:str}.
     """
     content = []
@@ -50,7 +58,8 @@ async def estimate_food(image_bytes: Optional[bytes] = None,
         b64 = base64.b64encode(image_bytes).decode()
         content.append({
             "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{b64}", "detail": "low"},
+            "image_url": {"url": f"data:image/jpeg;base64,{b64}",
+                          "detail": "high" if detail == "high" else "low"},
         })
 
     resp = await _client_for(api_key).chat.completions.create(

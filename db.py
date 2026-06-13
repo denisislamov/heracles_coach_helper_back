@@ -381,6 +381,17 @@ async def add_calorie_feedback(user_id, username, dish, correct_kcal,
         )
 
 
+async def lookup_correction(name: str):
+    """Выверенная калорийность для известного блюда (точное совпадение, без регистра) или None."""
+    if not name or not name.strip():
+        return None
+    async with _pool.acquire() as conn:
+        return await conn.fetchval(
+            """SELECT kcal FROM food_corrections
+               WHERE lower(dish) = lower($1) ORDER BY created_at DESC LIMIT 1""",
+            name.strip())
+
+
 async def record_payment(user_id, payload, amount_stars, charge_id) -> bool:
     """Сохранить платёж идемпотентно. True — если запись новая (не дубль доставки)."""
     async with _pool.acquire() as conn:

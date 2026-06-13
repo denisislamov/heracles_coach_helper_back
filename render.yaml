@@ -39,7 +39,7 @@ services:
       - key: FREE_PERIOD_DAYS
         value: "30"            # бесплатный период; меняется в админке
       - key: SUBSCRIPTION_PRICE_STARS
-        value: "150"
+        value: "200"
       - key: SUBSCRIPTION_DAYS
         value: "30"
       - key: TRIAL_DAYS

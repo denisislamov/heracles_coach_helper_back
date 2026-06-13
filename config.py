@@ -51,7 +51,7 @@ FREE_DAILY_AI = int(os.environ.get("FREE_DAILY_AI", "3"))
 # Длина бесплатного периода в днях с момента регистрации (потом — только Premium).
 FREE_PERIOD_DAYS = int(os.environ.get("FREE_PERIOD_DAYS", "30"))
 # Цена месячной подписки Premium в звёздах (валюта XTR). 1 ⭐ ≈ пара центов.
-SUBSCRIPTION_PRICE_STARS = int(os.environ.get("SUBSCRIPTION_PRICE_STARS", "150"))
+SUBSCRIPTION_PRICE_STARS = int(os.environ.get("SUBSCRIPTION_PRICE_STARS", "200"))
 # Длительность подписки в днях. Для нативной подписки Telegram = ровно 30 (2592000 c).
 SUBSCRIPTION_DAYS = int(os.environ.get("SUBSCRIPTION_DAYS", "30"))
 # Период автопродления подписки Telegram Stars в секундах (Telegram принимает только 2592000).

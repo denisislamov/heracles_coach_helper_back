@@ -59,26 +59,47 @@ async def _gate(update, context):
     return mode, today, user
 
 
+async def _apply_corrections(result: dict):
+    """Переопределить калории позиций известными выверенными значениями (food_corrections)."""
+    if not result:
+        return
+    items = result.get("items") or []
+    changed = False
+    for it in items:
+        kcal = await db.lookup_correction(it.get("name", ""))
+        if kcal is not None:
+            it["calories"] = int(kcal)
+            changed = True
+    if changed and items:
+        result["calories"] = sum(int(i.get("calories", 0)) for i in items)
+
+
 async def _run_estimate(update, user, mode, image_bytes=None, caption=None):
     """Вызвать ИИ с нужной моделью/ключом. Для BYOK при ошибке — фолбэк на общий ключ.
     Возвращает result-dict или None (если не получилось — вызывающий шлёт сообщение)."""
     model, api_key = payments.ai_params(user, mode)
+    # high detail (точнее) для полноценной модели, low — для дешёвой free-модели
+    detail = "high" if model == config.OPENAI_MODEL else "low"
     try:
-        return await ai.estimate_food(image_bytes=image_bytes, caption=caption,
-                                      model=model, api_key=api_key)
+        result = await ai.estimate_food(image_bytes=image_bytes, caption=caption,
+                                        model=model, api_key=api_key, detail=detail)
     except Exception as e:
         if mode == "byok":
             log.warning("BYOK-ключ не сработал, фолбэк на общий: %s", e)
             await update.effective_message.reply_text(
                 "⚠️ Твой ключ OpenAI не сработал — считаю на общем. Проверь ключ или /delkey.")
             try:
-                return await ai.estimate_food(image_bytes=image_bytes, caption=caption,
-                                              model=config.OPENAI_MODEL)
+                result = await ai.estimate_food(image_bytes=image_bytes, caption=caption,
+                                                model=config.OPENAI_MODEL, detail="high")
             except Exception as e2:
                 log.exception("Фолбэк тоже не удался: %s", e2)
                 return None
-        log.exception("Ошибка ИИ-оценки: %s", e)
-        return None
+        else:
+            log.exception("Ошибка ИИ-оценки: %s", e)
+            return None
+    # переопределяем калории известных блюд выверенными значениями из админки
+    await _apply_corrections(result)
+    return result
 
 
 # ------------------------------------------------------------------- команды

@@ -1,7 +1,7 @@
 """Точка входа. На Render запускается в режиме webhook, локально — polling."""
 import logging
 
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.ext import (Application, CommandHandler, MessageHandler,
                           CallbackQueryHandler, PreCheckoutQueryHandler, filters)
 
@@ -9,7 +9,19 @@ import config
 import db
 import handlers
 import payments
+import reminders
 import reports
+
+PUBLIC_COMMANDS = [
+    BotCommand("start", "Запуск и настройка"),
+    BotCommand("menu", "Меню и настройки"),
+    BotCommand("premium", "Premium-подписка"),
+    BotCommand("promo", "Активировать промокод"),
+    BotCommand("feedback", "Сообщить о проблеме"),
+    BotCommand("help", "Как пользоваться"),
+    BotCommand("terms", "Условия"),
+    BotCommand("paysupport", "Поддержка по оплате"),
+]
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -21,7 +33,9 @@ log = logging.getLogger("calbot")
 async def _post_init(application: Application) -> None:
     await db.init()
     await payments.refresh_settings()
+    await application.bot.set_my_commands(PUBLIC_COMMANDS)
     await reports.schedule_all(application)
+    await reminders.schedule_all(application)
     # подхватывать смену настроек (монетизация/лимиты) из админки раз в минуту
     application.job_queue.run_repeating(payments.refresh_settings_job, interval=60, first=60)
     log.info("БД инициализирована, отчёты запланированы. Монетизация: %s, free=%s/день %s дней",

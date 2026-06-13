@@ -49,6 +49,7 @@ def main_menu() -> InlineKeyboardMarkup:
 def settings_menu(user) -> InlineKeyboardMarkup:
     daily = "🔔 вкл" if user["daily_on"] else "🔕 выкл"
     weekly = "🔔 вкл" if user["weekly_on"] else "🔕 выкл"
+    rem = "🔔 вкл" if user["reminders_on"] else "🔕 выкл"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(f"🎯 Цель: {user['goal'] or '—'} ккал", callback_data="set_goal")],
         [InlineKeyboardButton(f"🕘 Время дн. отчёта: {user['daily_hour']:02d}:00",
@@ -58,7 +59,25 @@ def settings_menu(user) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(f"🌍 Часовой пояс: {tz_display(user['timezone'])}", callback_data="set_tz")],
         [InlineKeyboardButton(f"Дневной отчёт: {daily}", callback_data="toggle_daily"),
          InlineKeyboardButton(f"Недельный: {weekly}", callback_data="toggle_weekly")],
+        [InlineKeyboardButton(f"⏰ Напоминания: {rem}", callback_data="toggle_rem"),
+         InlineKeyboardButton(f"каждые {user['reminder_interval']}ч", callback_data="set_rem_int")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="menu")],
+    ])
+
+
+def rem_interval_menu() -> InlineKeyboardMarkup:
+    rows, row = [], []
+    for h in range(2, 9):
+        row.append(InlineKeyboardButton(f"{h}ч", callback_data=f"remint:{h}"))
+    rows.append(row)
+    rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="settings")])
+    return InlineKeyboardMarkup(rows)
+
+
+def reminders_onboarding() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔔 Включить напоминания", callback_data="rem_on")],
+        [InlineKeyboardButton("🔕 Без напоминаний", callback_data="rem_off")],
     ])
 
 

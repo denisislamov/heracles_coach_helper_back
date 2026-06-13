@@ -15,6 +15,7 @@ import db
 import feedback
 import keyboards as kb
 import payments
+import reminders
 import reports
 
 log = logging.getLogger("calbot.handlers")
@@ -104,6 +105,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=kb.keep_goal(user["goal"]),
         )
     else:
+        context.user_data["onboarding"] = True
         await update.message.reply_text(
             "🎯 Для начала укажи *цель по калориям на день* (число, напр. 2000):",
             parse_mode="Markdown",
@@ -281,9 +283,16 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("awaiting", None)
         user = await db.get_user(update.effective_user.id)
         reports.schedule_user(context.application, user)
-        await update.message.reply_text(
-            f"🎯 Цель установлена: *{goal}* ккal/день.", parse_mode="Markdown",
-            reply_markup=kb.main_menu())
+        if context.user_data.pop("onboarding", False):
+            await update.message.reply_text(
+                f"🎯 Цель установлена: *{goal}* ккал/день.\n\n"
+                "🔔 Включить напоминания? Если засидишься, бот мягко напомнит "
+                "записать приём пищи (по умолчанию раз в 5 часов, только днём).",
+                parse_mode="Markdown", reply_markup=kb.reminders_onboarding())
+        else:
+            await update.message.reply_text(
+                f"🎯 Цель установлена: *{goal}* ккал/день.", parse_mode="Markdown",
+                reply_markup=kb.main_menu())
         return
 
     if awaiting == "promo":
@@ -461,4 +470,26 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
     elif data == "toggle_weekly":
         await db.update_settings(uid, weekly_on=not user["weekly_on"])
+        await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
+
+    # --- напоминания ---
+    elif data == "rem_on":
+        await db.update_settings(uid, reminders_on=True)
+        reminders.schedule_user(context.application, await db.get_user(uid))
+        await q.edit_message_text("🔔 Напоминания включены. Поехали!")
+        await q.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
+    elif data == "rem_off":
+        await db.update_settings(uid, reminders_on=False)
+        reminders.schedule_user(context.application, await db.get_user(uid))
+        await q.edit_message_text("🔕 Хорошо, без напоминаний. Включить можно в /menu → Настройки.")
+        await q.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
+    elif data == "toggle_rem":
+        await db.update_settings(uid, reminders_on=not user["reminders_on"])
+        reminders.schedule_user(context.application, await db.get_user(uid))
+        await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
+    elif data == "set_rem_int":
+        await q.edit_message_text("⏰ Как часто напоминать?", reply_markup=kb.rem_interval_menu())
+    elif data.startswith("remint:"):
+        await db.update_settings(uid, reminder_interval=int(data.split(":")[1]))
+        reminders.schedule_user(context.application, await db.get_user(uid))
         await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))

@@ -104,6 +104,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS payments_charge_id_uniq ON payments(charge_id)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS sub_charge_id  TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS openai_key_enc TEXT;
 
+-- Напоминания «не забудь записать приём пищи».
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reminders_on      BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reminder_interval INTEGER NOT NULL DEFAULT 5;
+
 -- Утверждённые правки калорийности (на будущее — для уточнения распознавания).
 CREATE TABLE IF NOT EXISTS food_corrections (
     id          BIGSERIAL PRIMARY KEY,
@@ -174,7 +178,8 @@ async def set_goal(user_id: int, goal: int) -> None:
 
 async def update_settings(user_id: int, **fields) -> None:
     """Обновить произвольные поля настроек: timezone, daily_hour, weekly_dow, daily_on, weekly_on."""
-    allowed = {"timezone", "daily_hour", "weekly_dow", "daily_on", "weekly_on", "goal"}
+    allowed = {"timezone", "daily_hour", "weekly_dow", "daily_on", "weekly_on", "goal",
+               "reminders_on", "reminder_interval"}
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:
         return
@@ -239,6 +244,13 @@ async def day_entries(user_id: int, entry_date: date) -> list:
                WHERE user_id=$1 AND entry_date=$2 ORDER BY created_at""",
             user_id, entry_date,
         )
+
+
+async def last_entry_at(user_id: int):
+    """Время последнего приёма пищи (timestamptz) или None."""
+    async with _pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT max(created_at) FROM entries WHERE user_id=$1", user_id)
 
 
 async def range_daily_totals(user_id: int, start: date, end: date) -> list:

@@ -44,6 +44,12 @@ services:
         value: "300"            # тариф Premium+КБЖУ
       - key: MACROS_TIER_ENABLED
         value: "1"              # дефолт; реально управляется из админки
+      - key: REFERRAL_ENABLED
+        value: "1"
+      - key: REFERRAL_REWARD_DAYS
+        value: "30"
+      - key: REFERRAL_FRIENDS_NEEDED
+        value: "1"
       - key: SUBSCRIPTION_DAYS
         value: "30"
       - key: TRIAL_DAYS

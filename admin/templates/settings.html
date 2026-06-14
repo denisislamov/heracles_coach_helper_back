@@ -32,6 +32,21 @@
       <input name="macros_price" type="number" min="1" value="{{ cur.macros_price }}" style="width:120px">
     </div>
 
+    <hr style="border:none;border-top:1px solid var(--line);width:100%">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <label style="font-size:16px;">Реферальная программа включена</label>
+      <input type="checkbox" name="referral_enabled" {{ 'checked' if cur.referral_enabled }} style="width:20px;height:20px;">
+    </div>
+    <p class="muted" style="margin:-8px 0 0">«Привёл друга — оба получаете Premium». Друг получает бонус при первом запуске, реферер — когда наберёт нужное число друзей.</p>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Бонус, дней Premium</label>
+      <input name="referral_reward_days" type="number" min="1" value="{{ cur.referral_reward_days }}" style="width:120px">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Сколько друзей нужно рефереру для бонуса</label>
+      <input name="referral_friends_needed" type="number" min="1" value="{{ cur.referral_friends_needed }}" style="width:120px">
+    </div>
+
     <button class="primary" type="submit" style="align-self:flex-start;">Сохранить</button>
   </form>
 </div>

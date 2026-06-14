@@ -123,6 +123,14 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS protein_goal INTEGER;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS fat_goal     INTEGER;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS carb_goal    INTEGER;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarded    BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by  BIGINT;
+
+-- Рефералы: кто кого привёл (один реферал на нового пользователя).
+CREATE TABLE IF NOT EXISTS referrals (
+    referrer_id BIGINT NOT NULL,
+    referred_id BIGINT PRIMARY KEY,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- Утверждённые правки калорийности (на будущее — для уточнения распознавания).
 CREATE TABLE IF NOT EXISTS food_corrections (
@@ -497,6 +505,37 @@ async def set_macro_goals(user_id: int, protein: int, fat: int, carb: int) -> No
             user_id, protein, fat, carb)
 
 
+async def grant_referral_reward(user_id: int, days: int) -> None:
+    """Начислить реферальный бонус: продлить Premium и поднять план до premium (не понижая)."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE users
+               SET premium_until = GREATEST(COALESCE(premium_until, now()), now())
+                                   + ($2 || ' days')::interval,
+                   plan = CASE WHEN plan = 'free' THEN 'premium' ELSE plan END
+               WHERE user_id = $1""",
+            user_id, days)
+
+
+async def add_referral(referrer_id: int, referred_id: int) -> bool:
+    """Записать реферала. True — если запись новая (этот новичок ещё не был чьим-то рефералом)."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO referrals (referrer_id, referred_id) VALUES ($1, $2)
+               ON CONFLICT (referred_id) DO NOTHING RETURNING referred_id""",
+            referrer_id, referred_id)
+        if row is not None:
+            await conn.execute(
+                "UPDATE users SET referred_by=$2 WHERE user_id=$1", referred_id, referrer_id)
+        return row is not None
+
+
+async def count_referrals(referrer_id: int) -> int:
+    async with _pool.acquire() as conn:
+        return int(await conn.fetchval(
+            "SELECT count(*) FROM referrals WHERE referrer_id=$1", referrer_id))
+
+
 async def reset_user(user_id: int) -> None:
     """Стереть историю питания и сбросить цель/профиль/онбординг.
     Подписка, план и кредиты сохраняются (это оплаченное)."""
@@ -539,5 +578,6 @@ async def admin_stats() -> dict:
                  (SELECT COALESCE(SUM(amount_stars),0) FROM payments WHERE created_at >= now() - interval '30 days' AND NOT is_refunded) AS stars_30d,
                  (SELECT COALESCE(SUM(amount_stars),0) FROM payments WHERE created_at >= now() - interval '30 days' AND NOT is_refunded AND payload='premium_sub') AS stars_30d_basic,
                  (SELECT COALESCE(SUM(amount_stars),0) FROM payments WHERE created_at >= now() - interval '30 days' AND NOT is_refunded AND payload='premium_macros_sub') AS stars_30d_plus,
-                 (SELECT count(*) FROM redemptions) AS promo_redemptions
+                 (SELECT count(*) FROM redemptions) AS promo_redemptions,
+                 (SELECT count(*) FROM referrals) AS referrals_total
             """))

@@ -27,6 +27,9 @@ SETTING_FREE_DAILY = "free_daily_ai"
 SETTING_FREE_PERIOD = "free_period_days"
 SETTING_MACROS_TIER = "macros_tier_enabled"
 SETTING_MACROS_PRICE = "macros_price"
+SETTING_REF_ENABLED = "referral_enabled"
+SETTING_REF_DAYS = "referral_reward_days"
+SETTING_REF_NEEDED = "referral_friends_needed"
 _settings: dict = {}  # пустой → используем дефолты из ENV
 
 
@@ -50,6 +53,18 @@ def macros_price() -> int:
     return _settings.get("macros_price", config.SUBSCRIPTION_MACROS_PRICE_STARS)
 
 
+def referral_enabled() -> bool:
+    return _settings.get("ref_enabled", config.REFERRAL_ENABLED)
+
+
+def referral_reward_days() -> int:
+    return _settings.get("ref_days", config.REFERRAL_REWARD_DAYS)
+
+
+def referral_friends_needed() -> int:
+    return max(1, _settings.get("ref_needed", config.REFERRAL_FRIENDS_NEEDED))
+
+
 def _truthy(v):
     return v is not None and v.strip() in ("1", "true", "yes", "on")
 
@@ -63,6 +78,9 @@ async def refresh_settings() -> None:
         fp = await db.get_setting(SETTING_FREE_PERIOD)
         mt = await db.get_setting(SETTING_MACROS_TIER)
         mp = await db.get_setting(SETTING_MACROS_PRICE)
+        re_ = await db.get_setting(SETTING_REF_ENABLED)
+        rd = await db.get_setting(SETTING_REF_DAYS)
+        rn = await db.get_setting(SETTING_REF_NEEDED)
     except Exception:
         return
     s = {}
@@ -71,6 +89,9 @@ async def refresh_settings() -> None:
     s["free_period"] = int(fp) if (fp and fp.strip().isdigit()) else config.FREE_PERIOD_DAYS
     s["macros_tier"] = _truthy(mt) if mt is not None else config.MACROS_TIER_ENABLED
     s["macros_price"] = int(mp) if (mp and mp.strip().isdigit()) else config.SUBSCRIPTION_MACROS_PRICE_STARS
+    s["ref_enabled"] = _truthy(re_) if re_ is not None else config.REFERRAL_ENABLED
+    s["ref_days"] = int(rd) if (rd and rd.strip().isdigit()) else config.REFERRAL_REWARD_DAYS
+    s["ref_needed"] = int(rn) if (rn and rn.strip().isdigit()) else config.REFERRAL_FRIENDS_NEEDED
     _settings = s
 
 
@@ -397,7 +418,8 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"Платежей за 30 дней: {s['payments_30d']}\n"
         f"Выручка за 30 дней: {s['stars_30d']}★ (≈ ${usd})\n"
         f"  • Premium: {s['stars_30d_basic']}★ · Premium+КБЖУ: {s['stars_30d_plus']}★\n"
-        f"Активаций промокодов: {s['promo_redemptions']}",
+        f"Активаций промокодов: {s['promo_redemptions']}\n"
+        f"Рефералов всего: {s['referrals_total']}",
         parse_mode="Markdown")
 
 

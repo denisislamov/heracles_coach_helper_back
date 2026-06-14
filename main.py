@@ -19,6 +19,7 @@ PUBLIC_COMMANDS = [
     BotCommand("menu", "Меню и настройки"),
     BotCommand("premium", "Premium-подписка"),
     BotCommand("promo", "Активировать промокод"),
+    BotCommand("invite", "Пригласить друга (бонус обоим)"),
     BotCommand("feedback", "Сообщить о проблеме"),
     BotCommand("reset", "Начать заново (стереть историю)"),
     BotCommand("help", "Как пользоваться"),
@@ -92,6 +93,7 @@ def build_app() -> Application:
     app.add_handler(CommandHandler(["menu", "settings"], handlers.menu))
     app.add_handler(CommandHandler("help", handlers.help_cmd))
     app.add_handler(CommandHandler("version", handlers.version_cmd))
+    app.add_handler(CommandHandler("invite", handlers.invite_cmd))
     app.add_handler(CommandHandler("reset", handlers.reset_cmd))
     app.add_handler(CommandHandler("feedback", handlers.feedback_cmd))
     app.add_handler(CommandHandler("premium", payments.premium_cmd))

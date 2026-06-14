@@ -63,6 +63,11 @@ SUBSCRIPTION_PERIOD_SEC = 2592000
 # Контакт поддержки (для /paysupport и /terms).
 SUPPORT_CONTACT = os.environ.get("SUPPORT_CONTACT", "@your_support")
 
+# --- Реферальная программа (дефолты; реально управляется из админки) ---
+REFERRAL_ENABLED = os.environ.get("REFERRAL_ENABLED", "1").lower() in ("1", "true", "yes")
+REFERRAL_REWARD_DAYS = int(os.environ.get("REFERRAL_REWARD_DAYS", "30"))      # дней Premium за бонус
+REFERRAL_FRIENDS_NEEDED = int(os.environ.get("REFERRAL_FRIENDS_NEEDED", "1"))  # друзей для бонуса рефереру
+
 # Доп. триал безлимита для новых (0 = выкл). Бесплатная модель уже задана
 # параметрами FREE_DAILY_AI + FREE_PERIOD_DAYS, поэтому по умолчанию выключен.
 TRIAL_DAYS = int(os.environ.get("TRIAL_DAYS", "0"))

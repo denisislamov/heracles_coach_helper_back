@@ -44,6 +44,8 @@ def main_menu() -> InlineKeyboardMarkup:
     ]
     if payments.monetization_enabled():
         rows.append([InlineKeyboardButton("⭐ Premium", callback_data="premium")])
+    if payments.referral_enabled():
+        rows.append([InlineKeyboardButton("👥 Пригласить друга", callback_data="invite")])
     rows.append([InlineKeyboardButton("⚙️ Настройки", callback_data="settings"),
                  InlineKeyboardButton("🛟 Обратная связь", callback_data="feedback")])
     return InlineKeyboardMarkup(rows)

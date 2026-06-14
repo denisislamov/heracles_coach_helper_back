@@ -135,10 +135,52 @@ async def _run_estimate(update, user, mode, image_bytes=None, caption=None):
 
 # ------------------------------------------------------------------- команды
 
+async def _handle_referral(update, context, inserted: bool):
+    """Если новый пользователь пришёл по ссылке ?start=ref_<id> — начислить бонус обоим."""
+    if not (inserted and payments.referral_enabled() and context.args):
+        return
+    arg = context.args[0]
+    if not arg.startswith("ref_") or not arg[4:].isdigit():
+        return
+    ref_id = int(arg[4:])
+    uid = update.effective_user.id
+    if ref_id == uid:
+        return
+    referrer = await db.get_user(ref_id)
+    if not referrer:
+        return
+    if not await db.add_referral(ref_id, uid):
+        return  # этот новичок уже был чьим-то рефералом
+    days = payments.referral_reward_days()
+    # друг получает бонус сразу
+    await db.grant_referral_reward(uid, days)
+    await update.message.reply_text(
+        f"🎁 Ты пришёл по приглашению — тебе *{days} дней Premium* в подарок!",
+        parse_mode="Markdown")
+    # реферер получает бонус, когда набрал нужное число друзей
+    needed = payments.referral_friends_needed()
+    cnt = await db.count_referrals(ref_id)
+    if cnt % needed == 0:
+        await db.grant_referral_reward(ref_id, days)
+        try:
+            await context.bot.send_message(
+                ref_id, f"🎉 По твоей ссылке пришёл друг — тебе *{days} дней Premium*! Спасибо 🙌",
+                parse_mode="Markdown")
+        except Exception:
+            pass
+    else:
+        try:
+            await context.bot.send_message(
+                ref_id, f"👥 По твоей ссылке пришёл друг! Ещё {needed - cnt % needed} — и месяц Premium.")
+        except Exception:
+            pass
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
     context.user_data.pop("entry_date", None)  # сбрасываем «другой день»
     inserted = await db.ensure_user(u.id, u.username)
+    await _handle_referral(update, context, inserted)
     trial_note = None
     if inserted and payments.monetization_enabled() and config.TRIAL_DAYS > 0:
         await db.grant_premium_days(u.id, config.TRIAL_DAYS)
@@ -166,6 +208,30 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text(), parse_mode="Markdown")
+
+
+async def _invite_text(context, uid) -> str:
+    me = await context.bot.get_me()
+    link = f"https://t.me/{me.username}?start=ref_{uid}"
+    days = payments.referral_reward_days()
+    needed = payments.referral_friends_needed()
+    cnt = await db.count_referrals(uid)
+    cond = ("за каждого друга" if needed == 1 else f"за каждых {needed} друзей")
+    return (
+        "👥 *Приглашай друзей*\n\n"
+        f"Друг получает *{days} дней Premium* при первом запуске по твоей ссылке, "
+        f"а ты — *{days} дней Premium* {cond}.\n\n"
+        f"Твоя ссылка:\n{link}\n\n"
+        f"Уже приглашено: *{cnt}*")
+
+
+async def invite_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await db.ensure_user(update.effective_user.id, update.effective_user.username)
+    if not payments.referral_enabled():
+        await update.message.reply_text("Реферальная программа сейчас недоступна.")
+        return
+    await update.message.reply_text(
+        await _invite_text(context, update.effective_user.id), parse_mode="Markdown")
 
 
 async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -606,6 +672,12 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"*Premium* — {config.SUBSCRIPTION_PRICE_STARS}★ на "
                 f"{config.SUBSCRIPTION_DAYS} дней, безлимитные анализы.",
                 parse_mode="Markdown", reply_markup=payments.paywall_keyboard())
+
+    elif data == "invite":
+        if payments.referral_enabled():
+            await q.message.reply_text(await _invite_text(context, uid), parse_mode="Markdown")
+        else:
+            await q.message.reply_text("Реферальная программа сейчас недоступна.")
 
     elif data == "feedback":
         await feedback.open_menu(q)

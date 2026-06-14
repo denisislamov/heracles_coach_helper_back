@@ -29,7 +29,7 @@ STAR_USD = float(os.environ.get("STAR_USD", "0.013"))  # курс звезды �
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL_ADMIN = os.environ.get("OPENAI_MODEL_ADMIN", "gpt-4o-mini")
 
-APP_VERSION = "1.6.0"  # версия админки (синхронизируй с version.py бота)
+APP_VERSION = "1.7.0"  # версия админки (синхронизируй с version.py бота)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-please")
@@ -243,10 +243,13 @@ def settings():
     if request.method == "POST":
         _set_setting("monetization_enabled", "1" if request.form.get("monetization") == "on" else "0")
         _set_setting("macros_tier_enabled", "1" if request.form.get("macros_tier") == "on" else "0")
+        _set_setting("referral_enabled", "1" if request.form.get("referral_enabled") == "on" else "0")
         try:
             _set_setting("free_daily_ai", max(0, int(request.form.get("free_daily_ai", "3"))))
             _set_setting("free_period_days", max(1, int(request.form.get("free_period_days", "30"))))
             _set_setting("macros_price", max(1, int(request.form.get("macros_price", "300"))))
+            _set_setting("referral_reward_days", max(1, int(request.form.get("referral_reward_days", "30"))))
+            _set_setting("referral_friends_needed", max(1, int(request.form.get("referral_friends_needed", "1"))))
         except ValueError:
             flash("Числовые поля должны быть числами")
         flash("Настройки сохранены — бот подхватит их в течение минуты")
@@ -257,6 +260,9 @@ def settings():
         "free_daily_ai": _get_setting("free_daily_ai", "3"),
         "free_period_days": _get_setting("free_period_days", "30"),
         "macros_price": _get_setting("macros_price", "300"),
+        "referral_enabled": _get_setting("referral_enabled", "1") in ("1", "true", "yes", "on"),
+        "referral_reward_days": _get_setting("referral_reward_days", "30"),
+        "referral_friends_needed": _get_setting("referral_friends_needed", "1"),
     }
     return render_template("settings.html", cur=cur)
 

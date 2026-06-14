@@ -13,6 +13,8 @@ import ai
 import config
 import db
 import feedback
+import i18n
+from i18n import t
 import keyboards as kb
 import nutrition
 import payments
@@ -25,7 +27,7 @@ log = logging.getLogger("calbot.handlers")
 # Текст-«число калорий»: «350», «+200», «350 ккал»
 _NUM_RE = re.compile(r"^\+?\s*(\d{1,5})\s*(ккал|kcal|кал|cal)?$", re.IGNORECASE)
 
-def _plans_table() -> str:
+def _plans_table(lang: str = "ru") -> str:
     """Компактная таблица тарифов (моноширинный блок)."""
     fd = payments.free_daily_ai()
     fp = payments.free_period_days()
@@ -33,40 +35,25 @@ def _plans_table() -> str:
     if payments.macros_tier_enabled():
         body = (
             "                 Free   Premium  +КБЖУ\n"
-            f"Анализов в день  {str(fd):<6} ∞        ∞\n"
-            f"Доступ           {str(fp)+'д':<6} всегда   всегда\n"
-            "Точность ИИ      базов. высокая высокая\n"
+            f"               {str(fd):<6} ∞        ∞\n"
+            f"               {str(fp)+'d':<6} ∞        ∞\n"
             "Б/Ж/У            —      —        ✅\n"
         )
-        tail = (f"Premium — {price}★/мес, Premium+КБЖУ — {payments.macros_price()}★/мес. "
-                "Подробнее: /premium\n")
+        tail = t("plans_tail_macros", lang, price=price, mprice=payments.macros_price())
     else:
         body = (
             "                 Free        Premium\n"
-            f"Анализов в день  {str(fd):<11} без лимита\n"
-            f"Доступ           {str(fp)+' дн.':<11} всегда\n"
-            "Точность ИИ      базовая     высокая\n"
+            f"               {str(fd):<11} ∞\n"
+            f"               {str(fp)+'d':<11} ∞\n"
         )
-        tail = f"Premium — {price}★/мес. Подробнее: /premium\n"
-    return "\nТарифы:\n```\n" + body + "```" + tail
+        tail = t("plans_tail", lang, price=price)
+    return "\n" + t("plans_title", lang) + "\n```\n" + body + "```" + tail
 
 
-def welcome_text() -> str:
-    base = (
-        "👋 Привет! Я *Жиромер* — помогу считать калории.\n\n"
-        "Что я умею:\n"
-        "• 📷 Пришли *фото еды* — оценю калорийность.\n"
-        "• 📷 + подпись — оценю точнее (например: «куриная грудка 200 г»).\n"
-        "• ✍️ Просто текст блюда — оценю по описанию.\n"
-        "• 🔢 Просто число (напр. `350`) — добавлю столько ккал вручную.\n\n"
-        "Ошибся? Под каждой записью кнопки *✏️ Исправить* и *🗑 Удалить*.\n"
-        "В конце дня пришлю дневной отчёт, раз в неделю — недельный.\n\n"
-        "⚙️ *Цель, режим* (похудение / поддержание / набор) *и профиль* "
-        "(рост, вес — для авто-расчёта) — в /menu → Настройки.\n"
-        "Меню — /menu."
-    )
+def welcome_text(lang: str = "ru") -> str:
+    base = t("welcome", lang)
     if payments.monetization_enabled():
-        base += "\n" + _plans_table()
+        base += "\n" + _plans_table(lang)
     return base
 
 
@@ -109,15 +96,15 @@ async def _run_estimate(update, user, mode, image_bytes=None, caption=None):
     # high detail (точнее) для полноценной модели, low — для дешёвой free-модели
     detail = "high" if model == config.OPENAI_MODEL else "low"
     macros = payments.macros_enabled(user)
+    lang = user["lang"]
     try:
         result = await ai.estimate_food(image_bytes=image_bytes, caption=caption,
                                         model=model, api_key=api_key, detail=detail,
-                                        include_macros=macros)
+                                        include_macros=macros, lang=lang)
     except Exception as e:
         if mode == "byok":
             log.warning("BYOK-ключ не сработал, фолбэк на общий: %s", e)
-            await update.effective_message.reply_text(
-                "⚠️ Твой ключ OpenAI не сработал — считаю на общем. Проверь ключ или /delkey.")
+            await update.effective_message.reply_text(t("byok_fallback", lang))
             try:
                 result = await ai.estimate_food(image_bytes=image_bytes, caption=caption,
                                                 model=config.OPENAI_MODEL, detail="high",
@@ -152,28 +139,21 @@ async def _handle_referral(update, context, inserted: bool):
     if not await db.add_referral(ref_id, uid):
         return  # этот новичок уже был чьим-то рефералом
     days = payments.referral_reward_days()
-    # друг получает бонус сразу
+    flang = i18n.norm_lang(update.effective_user.language_code)  # язык нового друга
+    rlang = referrer["lang"]  # язык реферера
     await db.grant_referral_reward(uid, days)
-    await update.message.reply_text(
-        f"🎁 Ты пришёл по приглашению — тебе *{days} дней Premium* в подарок!",
-        parse_mode="Markdown")
-    # реферер получает бонус, когда набрал нужное число друзей
+    await update.message.reply_text(t("ref_friend_bonus", flang, days=days), parse_mode="Markdown")
     needed = payments.referral_friends_needed()
     cnt = await db.count_referrals(ref_id)
-    if cnt % needed == 0:
-        await db.grant_referral_reward(ref_id, days)
-        try:
-            await context.bot.send_message(
-                ref_id, f"🎉 По твоей ссылке пришёл друг — тебе *{days} дней Premium*! Спасибо 🙌",
-                parse_mode="Markdown")
-        except Exception:
-            pass
-    else:
-        try:
-            await context.bot.send_message(
-                ref_id, f"👥 По твоей ссылке пришёл друг! Ещё {needed - cnt % needed} — и месяц Premium.")
-        except Exception:
-            pass
+    try:
+        if cnt % needed == 0:
+            await db.grant_referral_reward(ref_id, days)
+            await context.bot.send_message(ref_id, t("ref_got_bonus", rlang, days=days),
+                                           parse_mode="Markdown")
+        else:
+            await context.bot.send_message(ref_id, t("ref_progress", rlang, n=needed - cnt % needed))
+    except Exception:
+        pass
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -181,80 +161,85 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("entry_date", None)  # сбрасываем «другой день»
     inserted = await db.ensure_user(u.id, u.username)
     await _handle_referral(update, context, inserted)
+    if inserted:  # язык по настройкам Telegram у нового пользователя
+        await db.update_settings(u.id, lang=i18n.norm_lang(u.language_code))
     trial_note = None
     if inserted and payments.monetization_enabled() and config.TRIAL_DAYS > 0:
         await db.grant_premium_days(u.id, config.TRIAL_DAYS)
-        trial_note = f"🎁 Первые {config.TRIAL_DAYS} дня — безлимитный доступ!"
+        trial_note = config.TRIAL_DAYS  # текст соберём ниже по языку
     user = await db.get_user(u.id)
+    lang = user["lang"]
     reports.schedule_user(context.application, user)
-    await update.message.reply_text(welcome_text(), parse_mode="Markdown")
+    await update.message.reply_text(welcome_text(lang), parse_mode="Markdown")
     if trial_note:
-        await update.message.reply_text(trial_note)
+        await update.message.reply_text(t("trial_note", lang, n=trial_note))
     if not user["onboarded"]:
         # Онбординг: сначала режим цели, затем способ задать калории.
         context.user_data["onboarding"] = True
         context.user_data["awaiting"] = "goal_mode"
         await update.message.reply_text(
-            "Для начала выбери свою *цель*:", parse_mode="Markdown",
-            reply_markup=kb.goal_mode_menu())
+            t("choose_goal", lang), parse_mode="Markdown",
+            reply_markup=kb.goal_mode_menu(lang))
     else:
-        await update.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
+        await update.message.reply_text(t("menu", lang), reply_markup=kb.main_menu(lang))
 
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.ensure_user(update.effective_user.id, update.effective_user.username)
-    await update.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
+    user = await db.get_user(update.effective_user.id)
+    await update.message.reply_text(t("menu", user["lang"]), reply_markup=kb.main_menu(user["lang"]))
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(welcome_text(), parse_mode="Markdown")
+    user = await db.get_user(update.effective_user.id)
+    lang = user["lang"] if user else "ru"
+    await update.message.reply_text(welcome_text(lang), parse_mode="Markdown")
 
 
-async def _invite_text(context, uid) -> str:
+async def _invite_text(context, uid, lang="ru") -> str:
     me = await context.bot.get_me()
     link = f"https://t.me/{me.username}?start=ref_{uid}"
     days = payments.referral_reward_days()
     needed = payments.referral_friends_needed()
     cnt = await db.count_referrals(uid)
-    cond = ("за каждого друга" if needed == 1 else f"за каждых {needed} друзей")
-    return (
-        "👥 *Приглашай друзей*\n\n"
-        f"Друг получает *{days} дней Premium* при первом запуске по твоей ссылке, "
-        f"а ты — *{days} дней Premium* {cond}.\n\n"
-        f"Твоя ссылка:\n{link}\n\n"
-        f"Уже приглашено: *{cnt}*")
+    cond = t("invite_cond_each", lang) if needed == 1 else t("invite_cond_n", lang, n=needed)
+    return t("invite_title", lang) + "\n\n" + t("invite_body", lang, days=days, cond=cond,
+                                                 link=link, cnt=cnt)
 
 
 async def invite_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.ensure_user(update.effective_user.id, update.effective_user.username)
+    user = await db.get_user(update.effective_user.id)
     if not payments.referral_enabled():
-        await update.message.reply_text("Реферальная программа сейчас недоступна.")
+        await update.message.reply_text(t("invite_off", user["lang"]))
         return
     await update.message.reply_text(
-        await _invite_text(context, update.effective_user.id), parse_mode="Markdown")
+        await _invite_text(context, update.effective_user.id, user["lang"]), parse_mode="Markdown")
 
 
 async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.ensure_user(update.effective_user.id, update.effective_user.username)
-    await update.message.reply_text(
-        "⚠️ *Начать заново?*\nЭто сотрёт всю историю приёмов пищи и сбросит цель и "
-        "профиль. Подписка сохранится. Действие необратимо.",
-        parse_mode="Markdown", reply_markup=kb.reset_confirm())
+    user = await db.get_user(update.effective_user.id)
+    await update.message.reply_text(t("reset_confirm", user["lang"]), parse_mode="Markdown",
+                                    reply_markup=kb.reset_confirm(user["lang"]))
 
 
 async def version_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = await db.get_user(update.effective_user.id)
+    lang = user["lang"] if user else "ru"
     notes = version.latest_notes()
     txt = f"🤖 *Жиромер* v{version.VERSION}"
     if notes:
-        txt += "\n\nПоследние изменения:\n" + "\n".join(f"• {n}" for n in notes)
+        txt += "\n\n" + t("ver_changes", lang) + "\n" + "\n".join(f"• {n}" for n in notes)
     await update.message.reply_text(txt, parse_mode="Markdown")
 
 
 async def feedback_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.ensure_user(update.effective_user.id, update.effective_user.username)
+    user = await db.get_user(update.effective_user.id)
     await update.message.reply_text(
-        "🛟 *Обратная связь*\n\nВыбери, о чём сообщить:",
-        parse_mode="Markdown", reply_markup=feedback.menu_keyboard())
+        t("fb_title", user["lang"]), parse_mode="Markdown",
+        reply_markup=feedback.menu_keyboard(user["lang"]))
 
 
 async def on_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -262,7 +247,8 @@ async def on_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("awaiting") in feedback.MEDIA_STATES:
         await feedback.handle_media(update, context, "video", update.message.video.file_id)
     else:
-        await update.message.reply_text("Видео я пока не распознаю. Пришли фото блюда 📷")
+        user = await db.get_user(update.effective_user.id)
+        await update.message.reply_text(t("video_no", user["lang"]))
 
 
 async def on_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -282,15 +268,16 @@ def _active_date(context, user) -> dt.date:
     return _today(user)
 
 
-def _progress_line(total: int, goal: int, label: str = "Сегодня") -> str:
-    """Строка с итогом дня и прогрессом к цели."""
+def _progress_line(total: int, goal: int, lang: str = "ru", label: str = None) -> str:
+    """Строка с итогом дня и прогрессом к цели. label — дата для бэкдейта."""
     if not goal:
-        return f"{label} всего: *{total}* ккал. Цель не задана — /menu."
+        return t("no_goal", lang, total=total)
     remaining = goal - total
     bar = reports._progress_bar(total, goal)
-    line = f"{label}: *{total}* / {goal} ккал\n{bar}\n"
-    line += (f"Осталось *{remaining}* ккал." if remaining >= 0
-             else f"⚠️ Превышение на *{-remaining}* ккал.")
+    head = (t("today_progress", lang, total=total, goal=goal) if label is None
+            else f"{label}: *{total}* / {goal}")
+    line = head + f"\n{bar}\n"
+    line += t("left", lang, n=remaining) if remaining >= 0 else t("over", lang, n=-remaining)
     return line
 
 
@@ -325,14 +312,16 @@ async def _maybe_advice(update, user, day, total, goal):
         macro_goals = {"protein": pg, "fat": fg, "carb": cg}
     try:
         advice = await ai.diet_advice(goal, total, names, goal_mode=mode,
-                                      macros=macros, macro_goals=macro_goals)
-        await update.effective_message.reply_text(f"💡 {advice}")
+                                      macros=macros, macro_goals=macro_goals,
+                                      lang=user["lang"])
+        await update.effective_message.reply_text(t("advice_prefix", user["lang"], advice=advice))
     except Exception:
         pass
 
 
 async def _log_and_reply(update, context, calories: int, item: str, result: dict = None):
     user = await db.get_user(update.effective_user.id)
+    lang = user["lang"]
     day = _active_date(context, user)
     backdated = day != _today(user)
     p = f = c = None
@@ -342,24 +331,28 @@ async def _log_and_reply(update, context, calories: int, item: str, result: dict
     total = await db.day_total(user["user_id"], day)
     goal = user["goal"] or 0
 
-    label = "Сегодня" if not backdated else day.strftime("%d.%m")
-    head = (f"✅ Записал: *{item}* — {calories} ккал.\n" if not backdated
-            else f"✅ Записал за *{day.strftime('%d.%m.%Y')}*: *{item}* — {calories} ккал.\n")
+    if backdated:
+        head = t("logged_back", lang, date=day.strftime('%d.%m.%Y'), item=item, cal=calories)
+        label = day.strftime("%d.%m")
+    else:
+        head = t("logged", lang, item=item, cal=calories)
+        label = None
     if p is not None and (p or f or c):
-        head = head.rstrip("\n") + f"  (Б {p} · Ж {f} · У {c} г)\n"
-    msg = head + _progress_line(total, goal, label) + await _macro_progress_line(user, day)
+        head += f"  (Б {p} · Ж {f} · У {c} г)"
+    msg = head + "\n" + _progress_line(total, goal, lang, label) + await _macro_progress_line(user, day)
     await update.effective_message.reply_text(
-        msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id, backdated))
+        msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id, backdated, lang))
     await _maybe_advice(update, user, day, total, goal)
 
 
 async def _reply_after_edit(update, user, entry_id: int, item: str, calories: int, day):
+    lang = user["lang"]
     total = await db.day_total(user["user_id"], day)
     goal = user["goal"] or 0
-    label = "Сегодня" if day == _today(user) else day.strftime("%d.%m")
-    msg = f"✏️ Обновил: *{item}* — {calories} ккал.\n" + _progress_line(total, goal, label)
+    label = None if day == _today(user) else day.strftime("%d.%m")
+    msg = t("fixed", lang, item=item, cal=calories) + "\n" + _progress_line(total, goal, lang, label)
     await update.effective_message.reply_text(
-        msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id))
+        msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id, False, lang))
     await _maybe_advice(update, user, day, total, goal)
 
 
@@ -369,9 +362,10 @@ async def _handle_fix_input(update, context, text: str):
     entry_id = context.user_data.pop("fix_entry_id", None)
     context.user_data.pop("awaiting", None)
     user = await db.get_user(uid)
+    lang = user["lang"]
     entry = await db.get_entry(entry_id, uid) if entry_id else None
     if not entry:
-        await update.message.reply_text("Не нашёл запись для правки — возможно, она удалена.")
+        await update.message.reply_text(t("fix_not_found", lang))
         return
 
     # вариант 1: новое число калорий (мгновенно, без ИИ)
@@ -385,11 +379,11 @@ async def _handle_fix_input(update, context, text: str):
     # вариант 2: уточнение текстом — пересчёт через ИИ (лимит НЕ списываем, это правка)
     await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
     try:
-        result = await ai.estimate_food(caption=text)
+        result = await ai.estimate_food(caption=text, include_macros=payments.macros_enabled(user),
+                                        lang=lang)
     except Exception as e:
         log.exception("Ошибка пересчёта правки: %s", e)
-        await update.message.reply_text(
-            "Не получилось пересчитать 😕 Пришли правильное число калорий.")
+        await update.message.reply_text(t("fix_recalc_fail", lang))
         context.user_data["awaiting"] = "fix"
         context.user_data["fix_entry_id"] = entry_id
         return
@@ -398,7 +392,7 @@ async def _handle_fix_input(update, context, text: str):
     await _reply_after_edit(update, user, entry_id, item, result["calories"], entry["entry_date"])
     note = result.get("note", "")
     if note:
-        await update.message.reply_text(f"🔎 {note}")
+        await update.message.reply_text(t("note_prefix", lang, note=note))
 
 
 # -------------------------------------------------------------- приём фото
@@ -419,15 +413,14 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = update.message.caption
     result = await _run_estimate(update, user, mode, image_bytes=img_bytes, caption=caption)
     if result is None:
-        await update.message.reply_text(
-            "Не удалось распознать фото 😕 Попробуй ещё раз или пришли описание текстом.")
+        await update.message.reply_text(t("photo_fail", user["lang"]))
         return
     await payments.consume(update.effective_user.id, mode, today)
-    item = ", ".join(i.get("name", "") for i in result.get("items", [])) or "блюдо с фото"
+    item = ", ".join(i.get("name", "") for i in result.get("items", [])) or t("photo_item_default", user["lang"])
     note = result.get("note", "")
     await _log_and_reply(update, context, result["calories"], item, result)
     if note:
-        await update.message.reply_text(f"🔎 {note}")
+        await update.message.reply_text(t("note_prefix", user["lang"], note=note))
 
 
 # -------------------------------------------------------------- приём текста
@@ -444,21 +437,22 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await feedback.handle_text(update, context, text)
         return
 
+    ulang = (await db.get_user(update.effective_user.id))["lang"]
+
     if awaiting == "goal":
         m = re.search(r"\d{3,5}", text)
         if not m:
-            await update.message.reply_text("Введи число, например 2000.")
+            await update.message.reply_text(t("enter_goal_num", ulang))
             return
         goal = int(m.group())
         if not (500 <= goal <= 10000):
-            await update.message.reply_text("Цель должна быть в диапазоне 500–10000 ккал.")
+            await update.message.reply_text(t("goal_range", ulang))
             return
         await db.set_goal(update.effective_user.id, goal)
         context.user_data.pop("awaiting", None)
         user = await db.get_user(update.effective_user.id)
         reports.schedule_user(context.application, user)
-        await update.message.reply_text(
-            f"🎯 Цель установлена: *{goal}* ккал/день.", parse_mode="Markdown")
+        await update.message.reply_text(t("goal_set", ulang, goal=goal), parse_mode="Markdown")
         await _finish_goal_setup(update, context)
         return
 
@@ -478,7 +472,7 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ручное добавление калорий числом (бесплатно, без лимита)
     m = _NUM_RE.match(text)
     if m:
-        await _log_and_reply(update, context, int(m.group(1)), "ручной ввод")
+        await _log_and_reply(update, context, int(m.group(1)), t("manual_item", ulang))
         return
 
     # иначе — описание блюда, оцениваем через ИИ (под лимитом)
@@ -488,61 +482,61 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
     result = await _run_estimate(update, user, mode, caption=text)
     if result is None:
-        await update.message.reply_text("Не получилось оценить 😕 Попробуй иначе или пришли фото.")
+        await update.message.reply_text(t("text_fail", ulang))
         return
     await payments.consume(update.effective_user.id, mode, today)
     item = ", ".join(i.get("name", "") for i in result.get("items", [])) or text[:50]
     await _log_and_reply(update, context, result["calories"], item, result)
     note = result.get("note", "")
     if note:
-        await update.message.reply_text(f"🔎 {note}")
+        await update.message.reply_text(t("note_prefix", ulang, note=note))
 
 
 # ----------------------------------------------- онбординг: режим цели и профиль
 
 async def _finish_goal_setup(update, context):
     """После установки цели: при онбординге — спросить напоминания, иначе — меню."""
-    await db.update_settings(update.effective_user.id, onboarded=True)
+    uid = update.effective_user.id
+    await db.update_settings(uid, onboarded=True)
+    lang = (await db.get_user(uid))["lang"]
     if context.user_data.pop("onboarding", False):
-        await update.effective_message.reply_text(
-            "🔔 Включить напоминания? Если засидишься, бот мягко напомнит "
-            "записать приём пищи (по умолчанию раз в 5 часов, только днём).",
-            reply_markup=kb.reminders_onboarding())
+        await update.effective_message.reply_text(t("rem_q", lang),
+                                                   reply_markup=kb.reminders_onboarding(lang))
     else:
-        await update.effective_message.reply_text(
-            "Готово. Главное меню:", reply_markup=kb.main_menu())
+        await update.effective_message.reply_text(t("done", lang), reply_markup=kb.main_menu(lang))
 
 
 async def _handle_profile_input(update, context, text: str):
     """Текстовые шаги мастера профиля: возраст → рост → вес."""
     awaiting = context.user_data.get("awaiting")
     prof = context.user_data.setdefault("prof", {})
+    lang = (await db.get_user(update.effective_user.id))["lang"]
     m = re.search(r"\d{2,3}", text)
     if not m:
-        await update.message.reply_text("Введи число.")
+        await update.message.reply_text(t("enter_num", lang))
         return
     val = int(m.group())
     if awaiting == "prof_age":
         if not (10 <= val <= 100):
-            await update.message.reply_text("Возраст должен быть 10–100.")
+            await update.message.reply_text(t("age_range", lang))
             return
         prof["age"] = val
         context.user_data["awaiting"] = "prof_height"
-        await update.message.reply_text("Рост в см? (напр. 175)")
+        await update.message.reply_text(t("ask_height", lang))
     elif awaiting == "prof_height":
         if not (120 <= val <= 230):
-            await update.message.reply_text("Рост должен быть 120–230 см.")
+            await update.message.reply_text(t("height_range", lang))
             return
         prof["height"] = val
         context.user_data["awaiting"] = "prof_weight"
-        await update.message.reply_text("Вес в кг? (напр. 70)")
+        await update.message.reply_text(t("ask_weight", lang))
     elif awaiting == "prof_weight":
         if not (30 <= val <= 300):
-            await update.message.reply_text("Вес должен быть 30–300 кг.")
+            await update.message.reply_text(t("weight_range", lang))
             return
         prof["weight"] = val
         context.user_data["awaiting"] = "prof_activity"
-        await update.message.reply_text("Уровень активности?", reply_markup=kb.activity_menu())
+        await update.message.reply_text(t("ask_activity", lang), reply_markup=kb.activity_menu(lang))
 
 
 async def _finish_profile(update, context):
@@ -550,6 +544,7 @@ async def _finish_profile(update, context):
     uid = update.effective_user.id
     prof = context.user_data.get("prof", {})
     user = await db.get_user(uid)
+    lang = user["lang"]
     mode = user["goal_mode"] or "lose"
     cal = nutrition.calorie_goal(prof.get("sex"), prof["age"], prof["height"],
                                  prof["weight"], prof.get("activity"), mode)
@@ -562,9 +557,8 @@ async def _finish_profile(update, context):
     reports.schedule_user(context.application, user)
     p, f, c = nutrition.goals_for_user(user)
     await update.effective_message.reply_text(
-        f"📊 Рассчитал под твою цель: *{cal} ккал/день* · Б {p} · Ж {f} · У {c} г.\n"
-        "Подходит или изменить?",
-        parse_mode="Markdown", reply_markup=kb.goal_confirm())
+        t("goal_calc", lang, cal=cal, p=p, f=f, c=c),
+        parse_mode="Markdown", reply_markup=kb.goal_confirm(lang))
 
 
 # --------------------------------------------------------- инлайн-кнопки
@@ -576,11 +570,10 @@ async def _render_day_view(q, user, day=None):
     entries = await db.day_entries(user["user_id"], day)
     text = reports.format_daily(user, day, entries)
     if day != today:
-        text += ("\n\n🗓 Это прошлый день. Фото/текст/число, отправленные сейчас, "
-                 "добавятся в эту дату. Чтобы вернуться к сегодня — кнопка ниже.")
+        text += t("day_back_note", user["lang"])
     try:
         await q.edit_message_text(
-            text, parse_mode="Markdown", reply_markup=kb.day_manage(entries, day != today))
+            text, parse_mode="Markdown", reply_markup=kb.day_manage(entries, day != today, user["lang"]))
     except BadRequest as e:
         if "not modified" not in str(e).lower():
             raise
@@ -592,113 +585,101 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = q.data
     uid = update.effective_user.id
     user = await db.get_user(uid)
+    lang = user["lang"]
 
-    if data == "keep_goal":
-        context.user_data.pop("awaiting", None)
-        await q.edit_message_text(
-            f"🎯 Оставил цель: *{user['goal']} ккал/день*.", parse_mode="Markdown")
-        await q.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
+    async def _settings(u=None):
+        u = u or await db.get_user(uid)
+        await q.edit_message_text(t("settings_title", lang), reply_markup=kb.settings_menu(u))
 
-    elif data == "reset":
-        await q.edit_message_text(
-            "⚠️ *Начать заново?*\nСотрём всю историю приёмов пищи и сбросим цель и "
-            "профиль. Подписка сохранится. Действие необратимо.",
-            parse_mode="Markdown", reply_markup=kb.reset_confirm())
+    if data == "reset":
+        await q.edit_message_text(t("reset_confirm", lang), parse_mode="Markdown",
+                                  reply_markup=kb.reset_confirm(lang))
     elif data == "reset_yes":
         await db.reset_user(uid)
         context.user_data.clear()
-        await q.edit_message_text("🗑 История очищена. Начнём заново!")
+        await q.edit_message_text(t("reset_done", lang))
         context.user_data["onboarding"] = True
         context.user_data["awaiting"] = "goal_mode"
-        await q.message.reply_text(
-            "Выбери свою *цель*:", parse_mode="Markdown", reply_markup=kb.goal_mode_menu())
+        await q.message.reply_text(t("choose_goal", lang), parse_mode="Markdown",
+                                   reply_markup=kb.goal_mode_menu(lang))
 
     elif data.startswith("fix:"):
         entry_id = int(data.split(":")[1])
         entry = await db.get_entry(entry_id, uid)
         if not entry:
-            await q.message.reply_text("Эта запись уже удалена.")
+            await q.message.reply_text(t("entry_missing", lang))
         else:
             context.user_data["awaiting"] = "fix"
             context.user_data["fix_entry_id"] = entry_id
             await q.message.reply_text(
-                f"✏️ Правлю «{entry['item']}» ({entry['calories']} ккал).\n"
-                "Пришли *правильное число калорий* или *уточни блюдо текстом* "
-                "(напр. «это хачапури, порция 300 г») — пересчитаю без списания лимита.",
+                t("fix_prompt", lang, item=entry['item'], cal=entry['calories']),
                 parse_mode="Markdown")
 
     elif data.startswith("del:"):
         entry_id = int(data.split(":")[1])
         ok = await db.delete_entry(entry_id, uid)
         if ok:
-            day = _today(user)
-            total = await db.day_total(uid, day)
+            total = await db.day_total(uid, _today(user))
             await q.edit_message_text(
-                "🗑 Запись удалена.\n" + _progress_line(total, user["goal"] or 0),
+                t("entry_deleted", lang) + "\n" + _progress_line(total, user["goal"] or 0, lang=lang),
                 parse_mode="Markdown")
         else:
-            await q.edit_message_text("🗑 Запись уже была удалена.")
+            await q.edit_message_text(t("entry_gone", lang))
 
     elif data == "buy_premium":
-        await q.message.reply_text("Открываю оплату звёздами…")
+        await q.message.reply_text(t("opening_pay", lang))
         await payments.send_premium_invoice(uid, context)
-
     elif data == "buy_premium_macros":
-        await q.message.reply_text("Открываю оплату звёздами…")
+        await q.message.reply_text(t("opening_pay", lang))
         await payments.send_macros_invoice(uid, context)
-
     elif data.startswith("buy_pack:"):
         credits = int(data.split(":")[1])
         stars = dict(config.CREDIT_PACKS).get(credits)
         if stars:
             await payments.send_pack_invoice(uid, context, credits, stars)
         else:
-            await q.message.reply_text("Пакет недоступен.")
+            await q.message.reply_text(t("pack_unavailable", lang))
 
     elif data == "enter_promo":
         context.user_data["awaiting"] = "promo"
-        await q.message.reply_text("🎟 Пришли промокод одним сообщением:")
+        await q.message.reply_text(t("promo_prompt", lang))
 
     elif data == "premium":
         today = _today(user)
         if payments.is_premium(user):
-            until = user["premium_until"].strftime("%d.%m.%Y")
             await q.edit_message_text(
-                f"⭐ Premium активен до *{until}*.", parse_mode="Markdown",
-                reply_markup=kb.back_to_menu())
+                t("premium_until_short", lang, date=user["premium_until"].strftime("%d.%m.%Y")),
+                parse_mode="Markdown", reply_markup=kb.back_to_menu(lang))
         else:
             await q.edit_message_text(
-                f"{payments.remaining_text(user, today)}\n\n"
-                f"*Premium* — {config.SUBSCRIPTION_PRICE_STARS}★ на "
-                f"{config.SUBSCRIPTION_DAYS} дней, безлимитные анализы.",
-                parse_mode="Markdown", reply_markup=payments.paywall_keyboard())
+                t("premium_offer", lang, remaining=payments.remaining_text(user, today),
+                  price=config.SUBSCRIPTION_PRICE_STARS),
+                parse_mode="Markdown", reply_markup=payments.paywall_keyboard(lang))
 
     elif data == "invite":
         if payments.referral_enabled():
-            await q.message.reply_text(await _invite_text(context, uid), parse_mode="Markdown")
+            await q.message.reply_text(await _invite_text(context, uid, lang), parse_mode="Markdown")
         else:
-            await q.message.reply_text("Реферальная программа сейчас недоступна.")
+            await q.message.reply_text(t("invite_off", lang))
 
     elif data == "feedback":
-        await feedback.open_menu(q)
+        await feedback.open_menu(q, lang)
     elif data == "fb_bug":
-        await q.edit_message_text("🐞 Баг-репорт")
-        await feedback.start_bug(update, context)
+        await q.edit_message_text(t("fb_bug", lang))
+        await feedback.start_bug(update, context, lang)
     elif data == "fb_cal":
-        await q.edit_message_text("🍽 Неверные калории")
-        await feedback.start_cal(update, context)
+        await q.edit_message_text(t("fb_cal", lang))
+        await feedback.start_cal(update, context, lang)
 
     elif data == "menu":
-        await q.edit_message_text("Главное меню:", reply_markup=kb.main_menu())
+        await q.edit_message_text(t("menu", lang), reply_markup=kb.main_menu(lang))
 
     elif data == "today":
         context.user_data.pop("entry_date", None)
         await _render_day_view(q, user, _today(user))
 
     elif data == "pickdate":
-        await q.edit_message_text(
-            "🗓 За какой день добавить? Выбери дату — следующие фото/текст пойдут в неё:",
-            reply_markup=kb.backdate_menu(_today(user)))
+        await q.edit_message_text(t("pickdate_q", lang), reply_markup=kb.backdate_menu(_today(user), lang))
 
     elif data.startswith("setdate:"):
         iso = data.split(":", 1)[1]
@@ -711,8 +692,8 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "date_today":
         context.user_data.pop("entry_date", None)
-        await q.edit_message_text("↩️ Снова работаем с сегодняшней датой.")
-        await q.message.reply_text("Главное меню:", reply_markup=kb.main_menu())
+        await q.edit_message_text(t("back_to_today_msg", lang))
+        await q.message.reply_text(t("menu", lang), reply_markup=kb.main_menu(lang))
 
     elif data.startswith("ddel:"):
         entry_id = int(data.split(":")[1])
@@ -721,36 +702,43 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "week":
         text = await reports.build_weekly_text(user)
-        await q.edit_message_text(text, parse_mode="Markdown", reply_markup=kb.back_to_menu())
+        await q.edit_message_text(text, parse_mode="Markdown", reply_markup=kb.back_to_menu(lang))
 
     elif data == "settings":
-        await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(user))
+        await _settings(user)
 
     elif data == "set_goal":
         context.user_data["awaiting"] = "goal"
-        await q.edit_message_text("🎯 Пришли новое число цели (ккал/день):")
+        await q.edit_message_text(t("set_goal_prompt", lang))
+
+    # --- язык ---
+    elif data == "set_lang":
+        await q.edit_message_text(t("lang_q", lang), reply_markup=kb.lang_menu())
+    elif data.startswith("setlang:"):
+        new_lang = data.split(":")[1]
+        await db.update_settings(uid, lang=new_lang)
+        await q.edit_message_text(t("lang_set", new_lang))
+        await q.message.reply_text(t("menu", new_lang), reply_markup=kb.main_menu(new_lang))
 
     # --- режим цели и профиль ---
     elif data == "set_mode":
-        await q.edit_message_text("🏃 Выбери режим цели:", reply_markup=kb.goal_mode_menu())
+        await q.edit_message_text(t("mode_q", lang), reply_markup=kb.goal_mode_menu(lang))
     elif data.startswith("gm:"):
         await db.update_settings(uid, goal_mode=data.split(":")[1])
         if context.user_data.get("onboarding"):
             context.user_data["awaiting"] = "goal_setup"
-            await q.edit_message_text(
-                "Как зададим дневную цель по калориям?", reply_markup=kb.setup_method_menu())
+            await q.edit_message_text(t("setup_q", lang), reply_markup=kb.setup_method_menu(lang))
         else:
-            await q.edit_message_text("⚙️ Настройки:",
-                                      reply_markup=kb.settings_menu(await db.get_user(uid)))
-    elif data == "calc_profile":
+            await _settings()
+    elif data in ("calc_profile", "set_profile"):
         context.user_data["prof"] = {}
         context.user_data["awaiting"] = "prof_sex"
-        await q.edit_message_text("Укажи пол:", reply_markup=kb.sex_menu())
+        await q.edit_message_text(t("ask_sex", lang), reply_markup=kb.sex_menu(lang))
     elif data == "manual_goal":
         context.user_data["awaiting"] = "goal"
-        await q.edit_message_text("🎯 Пришли число дневной цели (ккал, напр. 2000):")
+        await q.edit_message_text(t("ask_calories", lang))
     elif data == "goal_ok":
-        await q.edit_message_text("Отлично! 👍")
+        await q.edit_message_text(t("great", lang))
         await _finish_goal_setup(update, context)
     elif data == "trust_default":
         u = await db.get_user(uid)
@@ -759,72 +747,60 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u = await db.get_user(uid)
         reports.schedule_user(context.application, u)
         p, f, c = nutrition.goals_for_user(u)
-        await q.edit_message_text(
-            f"🤝 Стандартная цель под твой режим: *{goal} ккал/день* "
-            f"(Б {p} · Ж {f} · У {c} г).\nПодходит или изменить?",
-            parse_mode="Markdown", reply_markup=kb.goal_confirm())
-    elif data == "set_profile":
-        context.user_data["prof"] = {}
-        context.user_data["awaiting"] = "prof_sex"
-        await q.edit_message_text("Укажи пол:", reply_markup=kb.sex_menu())
+        await q.edit_message_text(t("trust_set", lang, goal=goal, p=p, f=f, c=c),
+                                  parse_mode="Markdown", reply_markup=kb.goal_confirm(lang))
     elif data.startswith("psex:"):
         context.user_data.setdefault("prof", {})["sex"] = data.split(":")[1]
         context.user_data["awaiting"] = "prof_age"
-        await q.edit_message_text("Сколько тебе лет? (напр. 30)")
+        await q.edit_message_text(t("ask_age", lang))
     elif data.startswith("pact:"):
         context.user_data.setdefault("prof", {})["activity"] = data.split(":")[1]
         await _finish_profile(update, context)
 
     elif data == "set_hour":
-        await q.edit_message_text("🕘 Час дневного отчёта:", reply_markup=kb.hours_menu())
+        await q.edit_message_text(t("hour_q", lang), reply_markup=kb.hours_menu(lang))
     elif data.startswith("hour:"):
         await db.update_settings(uid, daily_hour=int(data.split(":")[1]))
         reports.schedule_user(context.application, await db.get_user(uid))
-        await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
+        await _settings()
 
     elif data == "set_dow":
-        await q.edit_message_text("📆 День недельного отчёта:", reply_markup=kb.dow_menu())
+        await q.edit_message_text(t("dow_q", lang), reply_markup=kb.dow_menu(lang))
     elif data.startswith("dow:"):
         await db.update_settings(uid, weekly_dow=int(data.split(":")[1]))
-        await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
+        await _settings()
 
     elif data == "set_tz":
-        await q.edit_message_text(
-            f"🌍 Текущий пояс: *{kb.tz_display(user['timezone'])}*.\n"
-            "Выбери смещение от UTC — по нему бот считает «день» и шлёт отчёты:",
-            parse_mode="Markdown", reply_markup=kb.tz_menu())
+        await q.edit_message_text(t("tz_q", lang, v=kb.tz_display(user['timezone'])),
+                                  parse_mode="Markdown", reply_markup=kb.tz_menu(lang))
     elif data.startswith("tz:"):
         await db.update_settings(uid, timezone=data.split(":", 1)[1])
         reports.schedule_user(context.application, await db.get_user(uid))
-        await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
+        await _settings()
 
     elif data == "toggle_daily":
         await db.update_settings(uid, daily_on=not user["daily_on"])
-        await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
+        await _settings()
     elif data == "toggle_weekly":
         await db.update_settings(uid, weekly_on=not user["weekly_on"])
-        await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
+        await _settings()
 
     # --- напоминания ---
     elif data == "rem_on":
         await db.update_settings(uid, reminders_on=True)
         reminders.schedule_user(context.application, await db.get_user(uid))
-        await q.edit_message_text(
-            "🔔 Напоминания включены. Готово! 🍽 Пришли фото еды или опиши блюдо — "
-            "посчитаю калории. Меню — /menu.")
+        await q.edit_message_text(t("rem_done_on", lang))
     elif data == "rem_off":
         await db.update_settings(uid, reminders_on=False)
         reminders.schedule_user(context.application, await db.get_user(uid))
-        await q.edit_message_text(
-            "🔕 Без напоминаний (включить можно в /menu → Настройки). Готово! "
-            "🍽 Пришли фото еды или опиши блюдо — посчитаю калории. Меню — /menu.")
+        await q.edit_message_text(t("rem_done_off", lang))
     elif data == "toggle_rem":
         await db.update_settings(uid, reminders_on=not user["reminders_on"])
         reminders.schedule_user(context.application, await db.get_user(uid))
-        await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
+        await _settings()
     elif data == "set_rem_int":
-        await q.edit_message_text("⏰ Как часто напоминать?", reply_markup=kb.rem_interval_menu())
+        await q.edit_message_text(t("rem_int_q", lang), reply_markup=kb.rem_interval_menu(lang))
     elif data.startswith("remint:"):
         await db.update_settings(uid, reminder_interval=int(data.split(":")[1]))
         reminders.schedule_user(context.application, await db.get_user(uid))
-        await q.edit_message_text("⚙️ Настройки:", reply_markup=kb.settings_menu(await db.get_user(uid)))
+        await _settings()

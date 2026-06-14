@@ -12,6 +12,7 @@ import pytz
 
 import db
 import nutrition
+from i18n import t, weekday as _i18n_weekday
 
 
 def _today(tz_name: str) -> dt.date:
@@ -31,13 +32,17 @@ def format_daily(user, day, entries) -> str:
     total = sum(e["calories"] for e in entries)
     goal = user["goal"] or 0
 
-    lines = [f"📊 *Дневной отчёт за {day.strftime('%d.%m.%Y')}*", ""]
+    try:
+        lang = user["lang"]
+    except (KeyError, TypeError):
+        lang = "ru"
+    lines = [t("daily_title", lang, date=day.strftime('%d.%m.%Y')), ""]
     if entries:
         for i, e in enumerate(entries, 1):
-            name = e["item"] or "приём пищи"
+            name = e["item"] or "—"
             lines.append(f"{i}. {name} — {e['calories']} ккал")
     else:
-        lines.append("_Записей за день нет._")
+        lines.append(t("no_records", lang))
     lines.append("")
     if goal:
         bar = _progress_bar(total, goal)
@@ -72,11 +77,14 @@ async def build_weekly_text(user) -> str:
     rows = await db.range_daily_totals(user["user_id"], start, end)
     by_date = {r["entry_date"]: int(r["total"]) for r in rows}
     goal = user["goal"] or 0
+    try:
+        lang = user["lang"]
+    except (KeyError, TypeError):
+        lang = "ru"
 
-    lines = [f"📅 *Недельный отчёт* ({start.strftime('%d.%m')}–{end.strftime('%d.%m')})", ""]
+    lines = [t("weekly_title", lang) + f" ({start.strftime('%d.%m')}–{end.strftime('%d.%m')})", ""]
     week_total = 0
     days_with_data = 0
-    names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
     for i in range(7):
         d = start + dt.timedelta(days=i)
         val = by_date.get(d, 0)
@@ -86,15 +94,15 @@ async def build_weekly_text(user) -> str:
         mark = ""
         if goal and val:
             mark = " ⚠️" if val > goal else " ✅"
-        lines.append(f"{names[d.weekday()]} {d.strftime('%d.%m')}: {val} ккал{mark}")
+        lines.append(f"{_i18n_weekday(d.weekday(), lang)} {d.strftime('%d.%m')}: {val}{mark}")
     lines.append("")
     avg = round(week_total / days_with_data) if days_with_data else 0
-    lines.append(f"Сумма за неделю: *{week_total}* ккал")
-    lines.append(f"Среднее в день (по дням с записями): *{avg}* ккал")
+    lines.append(t("week_total", lang, v=week_total))
+    lines.append(t("week_avg", lang, v=avg))
     if goal:
         within = sum(1 for i in range(7)
                      if 0 < by_date.get(start + dt.timedelta(days=i), 0) <= goal)
-        lines.append(f"Дней в пределах цели: {within}/{days_with_data or 0}")
+        lines.append(t("week_within", lang, a=within, b=days_with_data or 0))
     return "\n".join(lines)
 
 

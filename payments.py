@@ -14,6 +14,7 @@ from telegram.ext import ContextTypes
 import byok
 import config
 import db
+from i18n import t
 
 log = logging.getLogger("calbot.payments")
 
@@ -177,94 +178,80 @@ def ai_params(user, mode: str):
 
 
 def remaining_text(user, today: dt.date) -> str:
+    lang = user["lang"]
     if not monetization_enabled():
-        return "Сейчас все функции бесплатны и без лимитов."
+        return t("free_all", lang)
     if is_premium(user):
-        return "Premium активен — безлимит."
-    if user["credits"] > 0:
-        suffix = f" Доступно кредитов: {user['credits']}."
-    else:
-        suffix = ""
+        return t("rem_text_premium", lang)
+    suffix = t("credits_suffix", lang, n=user["credits"]) if user["credits"] > 0 else ""
     if not within_free_period(user):
-        return (f"Бесплатный период ({free_period_days()} дн.) закончился — "
-                f"оформи Premium для продолжения.{suffix}")
+        return t("rem_text_period", lang, n=free_period_days(), credits=suffix)
     left = max(0, free_daily_ai() - free_used(user, today))
-    return (f"Сегодня осталось бесплатных анализов: {left}/{free_daily_ai()}."
-            f" Бесплатно — первые {free_period_days()} дней.{suffix}")
+    return t("rem_text_left", lang, left=left, total=free_daily_ai(),
+             days=free_period_days(), credits=suffix)
 
 
-def paywall_keyboard() -> InlineKeyboardMarkup:
+def paywall_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(
-        f"⭐ Premium — {config.SUBSCRIPTION_PRICE_STARS}★/мес", callback_data="buy_premium")]]
+        t("buy_premium", lang, price=config.SUBSCRIPTION_PRICE_STARS), callback_data="buy_premium")]]
     if macros_tier_enabled():
         rows.append([InlineKeyboardButton(
-            f"🥗 Premium+КБЖУ — {macros_price()}★/мес", callback_data="buy_premium_macros")])
+            t("buy_macros", lang, price=macros_price()), callback_data="buy_premium_macros")])
     for credits, stars in config.CREDIT_PACKS:
         rows.append([InlineKeyboardButton(
-            f"📦 {credits} анализов — {stars}★", callback_data=f"buy_pack:{credits}")])
-    rows.append([InlineKeyboardButton("🎟 Ввести промокод", callback_data="enter_promo")])
+            t("buy_pack", lang, credits=credits, stars=stars), callback_data=f"buy_pack:{credits}")])
+    rows.append([InlineKeyboardButton(t("enter_promo", lang), callback_data="enter_promo")])
     return InlineKeyboardMarkup(rows)
 
 
 async def send_paywall(update: Update, reason: str = "limit") -> None:
     msg = update.effective_message
-    if reason == "period":
-        head = (f"🚫 Бесплатный период ({free_period_days()} дн.) закончился.\n\n")
-    else:
-        head = (f"🚫 Дневной лимит бесплатных анализов исчерпан "
-                f"({free_daily_ai()}/день).\n\n")
+    u = await db.get_user(update.effective_user.id)
+    lang = u["lang"] if u else "ru"
+    head = (t("pay_period", lang, n=free_period_days()) if reason == "period"
+            else t("pay_limit", lang, n=free_daily_ai()))
     await msg.reply_text(
-        head +
-        f"Оформи *Premium* за {config.SUBSCRIPTION_PRICE_STARS}★/мес — безлимитные "
-        "анализы еды. Или возьми пакет анализов / активируй промокод.",
-        parse_mode="Markdown",
-        reply_markup=paywall_keyboard(),
-    )
+        head + t("pay_offer", lang, price=config.SUBSCRIPTION_PRICE_STARS),
+        parse_mode="Markdown", reply_markup=paywall_keyboard(lang))
 
 
 # --------------------------------------------------------------- инвойс/оплата
 
+async def _lang(uid):
+    u = await db.get_user(uid)
+    return u["lang"] if u else "ru"
+
+
 async def send_premium_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Нативная продлеваемая подписка Telegram Stars (Telegram сам списывает каждые 30 дней)."""
+    lang = await _lang(chat_id)
+    price = config.SUBSCRIPTION_PRICE_STARS
     link = await context.bot.create_invoice_link(
-        title="Premium (автопродление)",
-        description="Безлимитные ИИ-анализы калорий по фото и описанию. "
-                    "Списывается раз в 30 дней, отменить можно в любой момент.",
-        payload=PREMIUM_PAYLOAD,
-        currency="XTR",
-        prices=[LabeledPrice(label="Premium / мес", amount=config.SUBSCRIPTION_PRICE_STARS)],
-        subscription_period=config.SUBSCRIPTION_PERIOD_SEC,  # ровно 30 дней
+        title="Premium",
+        description="Unlimited AI food analyses by photo and text. Renews every 30 days.",
+        payload=PREMIUM_PAYLOAD, currency="XTR",
+        prices=[LabeledPrice(label="Premium / mo", amount=price)],
+        subscription_period=config.SUBSCRIPTION_PERIOD_SEC,
     )
     await context.bot.send_message(
-        chat_id,
-        f"⭐ *Premium* — {config.SUBSCRIPTION_PRICE_STARS}★ в месяц, автопродление.\n"
-        "Отменить можно в Telegram → Настройки → Подписки или командой /cancelsub.",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
-            f"Оформить за {config.SUBSCRIPTION_PRICE_STARS}★/мес", url=link)]]),
-    )
+        chat_id, t("sub_msg", lang, price=price), parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t("sub_btn", lang, price=price), url=link)]]))
 
 
 async def send_macros_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Подписка Premium+КБЖУ с автопродлением."""
+    lang = await _lang(chat_id)
     price = macros_price()
     link = await context.bot.create_invoice_link(
-        title="Premium+КБЖУ (автопродление)",
-        description="Всё из Premium + белки/жиры/углеводы по каждому приёму, цели по "
-                    "макросам и советы по их дефициту. Списывается раз в 30 дней.",
-        payload=MACROS_PAYLOAD,
-        currency="XTR",
-        prices=[LabeledPrice(label="Premium+КБЖУ / мес", amount=price)],
+        title="Premium+Macros",
+        description="Everything in Premium + protein/fat/carbs per meal and macro goals. Renews every 30 days.",
+        payload=MACROS_PAYLOAD, currency="XTR",
+        prices=[LabeledPrice(label="Premium+Macros / mo", amount=price)],
         subscription_period=config.SUBSCRIPTION_PERIOD_SEC,
     )
     await context.bot.send_message(
-        chat_id,
-        f"🥗 *Premium+КБЖУ* — {price}★ в месяц, автопродление.\n"
-        "Отменить можно в Telegram → Настройки → Подписки или командой /cancelsub.",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
-            f"Оформить за {price}★/мес", url=link)]]),
-    )
+        chat_id, t("sub_macros_msg", lang, price=price), parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t("sub_btn", lang, price=price), url=link)]]))
 
 
 async def send_pack_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE,
@@ -272,12 +259,10 @@ async def send_pack_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE,
     """Разовый пакет анализов (без автопродления)."""
     await context.bot.send_invoice(
         chat_id=chat_id,
-        title=f"Пакет {credits} анализов",
-        description=f"{credits} ИИ-анализов еды. Не сгорают по времени, тратятся "
-                    "после бесплатного дневного лимита.",
-        payload=f"{PACK_PREFIX}{credits}",
-        currency="XTR",
-        prices=[LabeledPrice(label=f"{credits} анализов", amount=stars)],
+        title=f"{credits} analyses",
+        description=f"{credits} AI food analyses. Don't expire; used after the daily free limit.",
+        payload=f"{PACK_PREFIX}{credits}", currency="XTR",
+        prices=[LabeledPrice(label=f"{credits} analyses", amount=stars)],
     )
 
 
@@ -316,23 +301,21 @@ async def on_successful_payment(update: Update, context: ContextTypes.DEFAULT_TY
         if getattr(sp, "is_first_recurring", False) or not user["sub_charge_id"]:
             await db.set_sub_charge_id(uid, charge_id)
         user = await db.get_user(uid)
+        lang = user["lang"]
         until = user["premium_until"].strftime("%d.%m.%Y") if user["premium_until"] else "—"
         name = "Premium+КБЖУ" if plan == "premium_plus" else "Premium"
         if getattr(sp, "is_recurring", False) and not getattr(sp, "is_first_recurring", False):
-            await update.message.reply_text(
-                f"🔄 Подписка продлена. *{name}* активен до *{until}*.", parse_mode="Markdown")
+            await update.message.reply_text(t("pay_renewed", lang, name=name, date=until),
+                                            parse_mode="Markdown")
         else:
-            extra = " Теперь в анализах и отчётах есть Б/Ж/У 🥗" if plan == "premium_plus" else ""
+            extra = t("pay_thanks_macros_extra", lang) if plan == "premium_plus" else ""
             await update.message.reply_text(
-                f"✅ Спасибо! *{name}* активен до *{until}* (автопродление). "
-                f"Анализы без лимита 🎉{extra}", parse_mode="Markdown")
+                t("pay_thanks", lang, name=name, date=until, extra=extra), parse_mode="Markdown")
 
     elif payload.startswith(PACK_PREFIX):
         n = int(payload[len(PACK_PREFIX):])
         await db.add_credits(uid, n)
-        await update.message.reply_text(
-            f"✅ Спасибо! Начислено *{n}* анализов. Тратятся после дневного лимита.",
-            parse_mode="Markdown")
+        await update.message.reply_text(t("pack_added", await _lang(uid), n=n), parse_mode="Markdown")
 
 
 # ------------------------------------------------------------------ команды
@@ -340,41 +323,36 @@ async def on_successful_payment(update: Update, context: ContextTypes.DEFAULT_TY
 async def premium_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     uid = update.effective_user.id
     await db.ensure_user(uid, update.effective_user.username)
-    if not monetization_enabled():
-        await update.message.reply_text("Сейчас все функции бесплатны 🎉 Оплата отключена.")
-        return
     user = await db.get_user(uid)
+    lang = user["lang"]
+    if not monetization_enabled():
+        await update.message.reply_text(t("pay_off_msg", lang))
+        return
     today = dt.datetime.now(dt.timezone.utc).date()
     if is_premium(user):
         until = user["premium_until"].strftime("%d.%m.%Y")
-        await update.message.reply_text(
-            f"⭐ Premium активен до *{until}* (автопродление).\n"
-            "Отменить автосписание — /cancelsub.", parse_mode="Markdown")
+        await update.message.reply_text(t("premium_active", lang, date=until), parse_mode="Markdown")
         return
     await update.message.reply_text(
-        f"{remaining_text(user, today)}\n\n"
-        f"*Premium* — {config.SUBSCRIPTION_PRICE_STARS}★/мес (автопродление), безлимитные "
-        "ИИ-анализы. Или разовый пакет анализов.",
-        parse_mode="Markdown",
-        reply_markup=paywall_keyboard(),
-    )
+        t("premium_offer", lang, remaining=remaining_text(user, today),
+          price=config.SUBSCRIPTION_PRICE_STARS),
+        parse_mode="Markdown", reply_markup=paywall_keyboard(lang))
 
 
 async def cancelsub_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     uid = update.effective_user.id
     user = await db.get_user(uid)
+    lang = user["lang"] if user else "ru"
     if not user or not user["sub_charge_id"]:
-        await update.message.reply_text("Активной автоподписки нет.")
+        await update.message.reply_text(t("cancel_none", lang))
         return
     try:
         await context.bot.edit_user_star_subscription(
             user_id=uid, telegram_payment_charge_id=user["sub_charge_id"], is_canceled=True)
-        await update.message.reply_text(
-            "✅ Автопродление отменено. Premium действует до конца оплаченного периода.")
+        await update.message.reply_text(t("cancel_ok", lang))
     except Exception as e:
         log.exception("cancelsub: %s", e)
-        await update.message.reply_text(
-            "Не получилось отменить через бота. Открой Telegram → Настройки → Подписки.")
+        await update.message.reply_text(t("cancel_fail", lang))
 
 
 async def refund_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -424,12 +402,13 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def setkey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    lang = await _lang(update.effective_user.id)
     if not byok.enabled():
-        await update.message.reply_text("Свой ключ сейчас не поддерживается.")
+        await update.message.reply_text(t("byok_off", lang))
         return
     await db.ensure_user(update.effective_user.id, update.effective_user.username)
     if not context.args:
-        await update.message.reply_text("Использование: /setkey sk-...")
+        await update.message.reply_text(t("byok_usage", lang))
         return
     key = context.args[0].strip()
     # сразу удаляем сообщение с ключом из чата
@@ -437,43 +416,40 @@ async def setkey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.delete()
     except Exception:
         pass
-    notice = await context.bot.send_message(update.effective_chat.id, "Проверяю ключ…")
+    notice = await context.bot.send_message(update.effective_chat.id, t("byok_checking", lang))
     if not await byok.validate_key(key):
-        await notice.edit_text("❌ Ключ не прошёл проверку. Убедись, что он рабочий.")
+        await notice.edit_text(t("byok_bad", lang))
         return
     await db.set_openai_key(update.effective_user.id, byok.encrypt(key))
-    await notice.edit_text(
-        "✅ Ключ сохранён (шифрованно). Анализы теперь безлимитны и за твой счёт OpenAI.\n"
-        "Удалить ключ — /delkey.")
+    await notice.edit_text(t("byok_saved", lang))
 
 
 async def delkey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    lang = await _lang(update.effective_user.id)
     await db.clear_openai_key(update.effective_user.id)
-    await update.message.reply_text("Ключ удалён. Бот снова работает на общих условиях.")
+    await update.message.reply_text(t("byok_deleted", lang))
 
 
 async def apply_promo(update: Update, context: ContextTypes.DEFAULT_TYPE, code: str) -> None:
     uid = update.effective_user.id
     code = code.strip().upper()
     today = dt.datetime.now(dt.timezone.utc).date()
+    lang = await _lang(uid)
     res = await db.redeem_promo(uid, code, today)
     if not res["ok"]:
-        await update.effective_message.reply_text(f"❌ {res['reason']}")
+        await update.effective_message.reply_text("❌ " + t(f"promo_err_{res['reason']}", lang))
         return
     if res["kind"] == "premium_days":
         await db.grant_premium_days(uid, res["value"])
         await db.set_plan(uid, "premium")
-        await update.effective_message.reply_text(
-            f"🎉 Промокод активирован: +{res['value']} дней Premium!")
+        await update.effective_message.reply_text(t("promo_premium_days", lang, n=res["value"]))
     elif res["kind"] == "premium_plus_days":
         await db.grant_premium_days(uid, res["value"])
         await db.set_plan(uid, "premium_plus")
-        await update.effective_message.reply_text(
-            f"🎉 Промокод активирован: +{res['value']} дней Premium+КБЖУ!")
+        await update.effective_message.reply_text(t("promo_premium_plus_days", lang, n=res["value"]))
     elif res["kind"] == "credits":
         await db.add_credits(uid, res["value"])
-        await update.effective_message.reply_text(
-            f"🎉 Промокод активирован: +{res['value']} анализов!")
+        await update.effective_message.reply_text(t("promo_credits", lang, n=res["value"]))
 
 
 async def promo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -482,17 +458,13 @@ async def promo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await apply_promo(update, context, context.args[0])
     else:
         context.user_data["awaiting"] = "promo"
-        await update.message.reply_text("🎟 Пришли промокод одним сообщением:")
+        await update.message.reply_text(t("promo_prompt", await _lang(update.effective_user.id)))
 
 
 async def terms_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    lang = await _lang(update.effective_user.id)
     await update.message.reply_text(
-        "📄 *Условия использования*\n\n"
-        "Бот оценивает калорийность по фото/описанию с помощью ИИ — это приблизительная "
-        "оценка, не медицинская рекомендация. Premium даёт безлимитные ИИ-анализы на "
-        f"{config.SUBSCRIPTION_DAYS} дней. Оплата — Telegram Stars. Возврат возможен через "
-        "поддержку. Оформляя покупку, вы соглашаетесь с этими условиями.\n\n"
-        f"Поддержка: {config.SUPPORT_CONTACT} или /paysupport.",
+        t("terms_text", lang, days=config.SUBSCRIPTION_DAYS, support=config.SUPPORT_CONTACT),
         parse_mode="Markdown")
 
 
@@ -530,9 +502,6 @@ async def addpromo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def paysupport_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    lang = await _lang(update.effective_user.id)
     await update.message.reply_text(
-        "🛟 *Поддержка по платежам*\n\n"
-        "Если есть вопрос по оплате или нужен возврат — напиши "
-        f"{config.SUPPORT_CONTACT}, укажи дату и сумму платежа. Ответим как можно скорее.\n\n"
-        "_Поддержка Telegram не помогает с покупками внутри бота._",
-        parse_mode="Markdown")
+        t("paysupport_text", lang, support=config.SUPPORT_CONTACT), parse_mode="Markdown")

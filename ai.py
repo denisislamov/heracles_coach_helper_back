@@ -45,8 +45,12 @@ _SCHEMA_MACROS = (
 )
 
 
-def _system_prompt(include_macros: bool) -> str:
-    return _RULES + (_SCHEMA_MACROS if include_macros else _SCHEMA_BASE)
+_LANG_NAME = {"ru": "русском", "en": "English"}
+
+
+def _system_prompt(include_macros: bool, lang: str = "ru") -> str:
+    lang_line = f"\nОтвечай (поля name и note) на языке: {_LANG_NAME.get(lang, 'русском')}.\n"
+    return _RULES + lang_line + (_SCHEMA_MACROS if include_macros else _SCHEMA_BASE)
 
 
 async def estimate_food(image_bytes: Optional[bytes] = None,
@@ -54,7 +58,8 @@ async def estimate_food(image_bytes: Optional[bytes] = None,
                         model: Optional[str] = None,
                         api_key: Optional[str] = None,
                         detail: str = "low",
-                        include_macros: bool = False) -> dict:
+                        include_macros: bool = False,
+                        lang: str = "ru") -> dict:
     """Оценить калорийность (и опц. КБЖУ) по фото и/или тексту.
 
     model   — какую модель использовать (по умолчанию config.OPENAI_MODEL);
@@ -63,7 +68,7 @@ async def estimate_food(image_bytes: Optional[bytes] = None,
     include_macros — просить также белки/жиры/углеводы.
     Возвращает dict: {calories:int, items:list, note:str[, protein_g, fat_g, carb_g]}.
     """
-    system = _system_prompt(include_macros)
+    system = _system_prompt(include_macros, lang)
     content = []
     user_text = caption.strip() if caption else ""
     if user_text:
@@ -121,7 +126,7 @@ _GOAL_MODE_HINT = {
 
 async def diet_advice(goal: int, consumed: int, items_today: list,
                       goal_mode: str = "lose", macros: dict = None,
-                      macro_goals: dict = None) -> str:
+                      macro_goals: dict = None, lang: str = "ru") -> str:
     """Совет по питанию с учётом режима цели и (опц.) дефицита макросов."""
     remaining = goal - consumed
     items_str = ", ".join(items_today[-10:]) if items_today else "нет данных"
@@ -137,13 +142,14 @@ async def diet_advice(goal: int, consumed: int, items_today: list,
         f"{_GOAL_MODE_HINT.get(goal_mode, _GOAL_MODE_HINT['lose'])} "
         f"Дневная цель: {goal} ккал. Уже съедено: {consumed} ккал (остаток {remaining}). "
         f"Что ел сегодня: {items_str}.{macro_line} "
-        "Дай 1–2 коротких практичных совета по-русски в духе цели. "
+        f"Дай 1–2 коротких практичных совета на языке: {_LANG_NAME.get(lang, 'русском')}, в духе цели. "
         "Без вступлений, дружелюбно, до 400 символов."
     )
     resp = await _client.chat.completions.create(
         model=config.OPENAI_MODEL,
         messages=[
-            {"role": "system", "content": "Ты дружелюбный нутрициолог. Пиши кратко по-русски."},
+            {"role": "system",
+             "content": f"Ты дружелюбный нутрициолог. Пиши кратко на языке: {_LANG_NAME.get(lang, 'русском')}."},
             {"role": "user", "content": prompt},
         ],
         max_tokens=250,

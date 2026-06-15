@@ -253,6 +253,24 @@ _STR = {
         "manual_item": "ручной ввод",
         "photo_item_default": "блюдо с фото",
         "day_back_note": "\n\n🗓 Это прошлый день. Фото/текст, отправленные сейчас, добавятся в эту дату.",
+        # меню-кнопки новых фич
+        "btn_favorites": "⭐ Избранное",
+        "btn_barcode": "📷 Штрих-код",
+        "btn_fav_add": "⭐",
+        # избранное
+        "fav_added": "⭐ Добавлено в избранное.",
+        "fav_empty": "В избранном пока пусто. Под любой записью нажми ⭐, чтобы сохранить.",
+        "fav_title": "⭐ *Избранное* — нажми, чтобы добавить сегодня:",
+        # голос
+        "voice_busy": "Заверши текущий шаг текстом 🙂",
+        "voice_fail": "Не удалось распознать голос 😕 Попробуй ещё раз или напиши текстом.",
+        "voice_empty": "Ничего не расслышал 😕 Попробуй ещё раз.",
+        "voice_heard": "🎤 Распознал: _{text}_",
+        # штрих-код
+        "bc_ask_photo": "📷 Пришли фото штрих-кода продукта (или пришли цифры под ним).",
+        "bc_not_found": "Не вижу штрих-код на фото 😕 Сфотографируй ближе или пришли цифры текстом.",
+        "bc_off_none": "Не нашёл продукт в базе Open Food Facts. Опиши его текстом или пришли фото еды.",
+        "bc_ask_grams": "Нашёл: *{name}* — {kcal} ккал/100 г.\nСколько граммов ты съел? (напр. 150)",
     },
     "en": {
         "menu": "Main menu:",
@@ -454,6 +472,20 @@ _STR = {
         "manual_item": "manual entry",
         "photo_item_default": "dish from photo",
         "day_back_note": "\n\n🗓 This is a past day. Photos/text you send now go to this date.",
+        "btn_favorites": "⭐ Favorites",
+        "btn_barcode": "📷 Barcode",
+        "btn_fav_add": "⭐",
+        "fav_added": "⭐ Added to favorites.",
+        "fav_empty": "No favorites yet. Tap ⭐ under any entry to save it.",
+        "fav_title": "⭐ *Favorites* — tap to add to today:",
+        "voice_busy": "Please finish the current step with text 🙂",
+        "voice_fail": "Couldn't recognize the voice 😕 Try again or type it.",
+        "voice_empty": "Didn't catch anything 😕 Try again.",
+        "voice_heard": "🎤 Heard: _{text}_",
+        "bc_ask_photo": "📷 Send a photo of the product barcode (or send the digits under it).",
+        "bc_not_found": "I don't see a barcode 😕 Take a closer photo or send the digits as text.",
+        "bc_off_none": "Product not found in Open Food Facts. Describe it in text or send a food photo.",
+        "bc_ask_grams": "Found: *{name}* — {kcal} kcal/100 g.\nHow many grams did you eat? (e.g. 150)",
     },
 }
 

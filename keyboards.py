@@ -39,7 +39,9 @@ def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton(t("btn_today", lang), callback_data="today"),
          InlineKeyboardButton(t("btn_week", lang), callback_data="week")],
-        [InlineKeyboardButton(t("btn_pickdate", lang), callback_data="pickdate")],
+        [InlineKeyboardButton(t("btn_pickdate", lang), callback_data="pickdate"),
+         InlineKeyboardButton(t("btn_favorites", lang), callback_data="favs")],
+        [InlineKeyboardButton(t("btn_barcode", lang), callback_data="barcode")],
         [InlineKeyboardButton(t("btn_set_goal", lang), callback_data="set_goal")],
         [InlineKeyboardButton(t("btn_mode", lang), callback_data="set_mode"),
          InlineKeyboardButton(t("btn_profile", lang), callback_data="set_profile")],
@@ -176,9 +178,23 @@ def tz_menu(lang: str = "ru") -> InlineKeyboardMarkup:
 
 def entry_actions(entry_id: int, backdated: bool = False, lang: str = "ru") -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(t("btn_fix", lang), callback_data=f"fix:{entry_id}"),
-             InlineKeyboardButton(t("btn_del", lang), callback_data=f"del:{entry_id}")]]
+             InlineKeyboardButton(t("btn_del", lang), callback_data=f"del:{entry_id}"),
+             InlineKeyboardButton(t("btn_fav_add", lang), callback_data=f"favadd:{entry_id}")]]
     if backdated:
         rows.append([InlineKeyboardButton(t("back_today", lang), callback_data="date_today")])
+    return InlineKeyboardMarkup(rows)
+
+
+def favorites_menu(favs, lang: str = "ru") -> InlineKeyboardMarkup:
+    """Список избранного: тап по строке — добавить сегодня, 🗑 — удалить."""
+    rows = []
+    for fv in favs:
+        name = (fv["name"] or "—")[:24]
+        rows.append([
+            InlineKeyboardButton(f"➕ {name} · {fv['calories']}", callback_data=f"fav:{fv['id']}"),
+            InlineKeyboardButton("🗑", callback_data=f"favdel:{fv['id']}"),
+        ])
+    rows.append([InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")])
     return InlineKeyboardMarkup(rows)
 
 

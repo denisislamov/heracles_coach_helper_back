@@ -10,9 +10,11 @@ from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 import ai
+import barcode as barcode_mod
 import config
 import db
 import feedback
+import foodfacts
 import i18n
 from i18n import t
 import keyboards as kb
@@ -403,6 +405,18 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("awaiting") in feedback.MEDIA_STATES:
         await feedback.handle_media(update, context, "photo", update.message.photo[-1].file_id)
         return
+    # фото штрих-кода
+    if context.user_data.get("awaiting") == "barcode_photo":
+        u = await db.get_user(update.effective_user.id)
+        photo = update.message.photo[-1]
+        tg_file = await photo.get_file()
+        img = bytes(await tg_file.download_as_bytearray())
+        code = barcode_mod.decode(img)
+        if code:
+            await _barcode_lookup(update, context, code, u["lang"])
+        else:
+            await update.message.reply_text(t("bc_not_found", u["lang"]))
+        return
     mode, today, user = await _gate(update, context)
     if mode is None:
         return
@@ -469,6 +483,22 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _handle_profile_input(update, context, text)
         return
 
+    if awaiting == "barcode_photo":  # пользователь прислал цифры штрих-кода текстом
+        digits = re.sub(r"\D", "", text)
+        if len(digits) >= 8:
+            await _barcode_lookup(update, context, digits, ulang)
+        else:
+            await update.message.reply_text(t("bc_not_found", ulang))
+        return
+
+    if awaiting == "bc_grams":
+        mm = re.search(r"\d{1,4}", text)
+        if not mm:
+            await update.message.reply_text(t("enter_num", ulang))
+            return
+        await _barcode_finish(update, context, int(mm.group()))
+        return
+
     # ручное добавление калорий числом (бесплатно, без лимита)
     m = _NUM_RE.match(text)
     if m:
@@ -476,20 +506,85 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # иначе — описание блюда, оцениваем через ИИ (под лимитом)
+    await _analyze_food_text(update, context, text)
+
+
+async def _analyze_food_text(update, context, text: str):
+    """Общий пайплайн: лимит → ИИ-оценка по тексту → запись. Для текста и голоса."""
     mode, today, user = await _gate(update, context)
     if mode is None:
         return
+    lang = user["lang"]
     await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
     result = await _run_estimate(update, user, mode, caption=text)
     if result is None:
-        await update.message.reply_text(t("text_fail", ulang))
+        await update.effective_message.reply_text(t("text_fail", lang))
         return
     await payments.consume(update.effective_user.id, mode, today)
     item = ", ".join(i.get("name", "") for i in result.get("items", [])) or text[:50]
     await _log_and_reply(update, context, result["calories"], item, result)
     note = result.get("note", "")
     if note:
-        await update.message.reply_text(t("note_prefix", ulang, note=note))
+        await update.effective_message.reply_text(t("note_prefix", lang, note=note))
+
+
+async def _barcode_lookup(update, context, code: str, lang: str):
+    """Найти продукт по коду в Open Food Facts и спросить граммовку."""
+    product = await foodfacts.lookup(code)
+    if not product:
+        await update.effective_message.reply_text(t("bc_off_none", lang))
+        return
+    context.user_data["bc_product"] = product
+    context.user_data["awaiting"] = "bc_grams"
+    await update.effective_message.reply_text(
+        t("bc_ask_grams", lang, name=product["name"], kcal=round(product["kcal_100g"])),
+        parse_mode="Markdown")
+
+
+async def _barcode_finish(update, context, grams: int):
+    """Посчитать порцию по граммам и записать."""
+    user = await db.get_user(update.effective_user.id)
+    p = context.user_data.pop("bc_product", None)
+    context.user_data.pop("awaiting", None)
+    if not p:
+        return
+    k = grams / 100.0
+    cal = round(p["kcal_100g"] * k)
+    res = {"protein_g": round(p["protein_100g"] * k),
+           "fat_g": round(p["fat_100g"] * k),
+           "carb_g": round(p["carb_100g"] * k)}
+    item = f"{p['name']} ({grams} г)"
+    await _log_and_reply(update, context, cal, item, res)
+
+
+async def on_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Голосовое сообщение → распознавание (Whisper) → анализ как текст."""
+    await db.ensure_user(update.effective_user.id, update.effective_user.username)
+    user = await db.get_user(update.effective_user.id)
+    lang = user["lang"]
+    # если идёт форма/онбординг — просим завершить текстом
+    if context.user_data.get("awaiting"):
+        await update.message.reply_text(t("voice_busy", lang))
+        return
+    await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
+    voice = update.message.voice or update.message.audio
+    tg_file = await voice.get_file()
+    audio = bytes(await tg_file.download_as_bytearray())
+    try:
+        text = await ai.transcribe(audio)
+    except Exception as e:
+        log.exception("Ошибка распознавания голоса: %s", e)
+        await update.message.reply_text(t("voice_fail", lang))
+        return
+    if not text:
+        await update.message.reply_text(t("voice_empty", lang))
+        return
+    await update.message.reply_text(t("voice_heard", lang, text=text))
+    m = _NUM_RE.match(text.strip())
+    if m:
+        await _log_and_reply(update, context, int(m.group(1)), t("manual_item", lang))
+    else:
+        await _analyze_food_text(update, context, text)
 
 
 # ----------------------------------------------- онбординг: режим цели и профиль
@@ -655,6 +750,43 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 t("premium_offer", lang, remaining=payments.remaining_text(user, today),
                   price=config.SUBSCRIPTION_PRICE_STARS),
                 parse_mode="Markdown", reply_markup=payments.paywall_keyboard(lang))
+
+    elif data.startswith("favadd:"):
+        entry_id = int(data.split(":")[1])
+        e = await db.get_entry(entry_id, uid)
+        if e:
+            await db.add_favorite(uid, e["item"] or "—", e["calories"],
+                                  e["protein_g"], e["fat_g"], e["carb_g"])
+            await q.message.reply_text(t("fav_added", lang))
+        else:
+            await q.message.reply_text(t("entry_missing", lang))
+
+    elif data == "favs":
+        favs = await db.list_favorites(uid)
+        if not favs:
+            await q.edit_message_text(t("fav_empty", lang), reply_markup=kb.back_to_menu(lang))
+        else:
+            await q.edit_message_text(t("fav_title", lang), reply_markup=kb.favorites_menu(favs, lang))
+
+    elif data.startswith("fav:"):
+        fv = await db.get_favorite(int(data.split(":")[1]), uid)
+        if fv:
+            res = {"protein_g": fv["protein_g"], "fat_g": fv["fat_g"], "carb_g": fv["carb_g"]}
+            await _log_and_reply(update, context, fv["calories"], fv["name"], res)
+        else:
+            await q.message.reply_text(t("entry_missing", lang))
+
+    elif data.startswith("favdel:"):
+        await db.delete_favorite(int(data.split(":")[1]), uid)
+        favs = await db.list_favorites(uid)
+        if favs:
+            await q.edit_message_text(t("fav_title", lang), reply_markup=kb.favorites_menu(favs, lang))
+        else:
+            await q.edit_message_text(t("fav_empty", lang), reply_markup=kb.back_to_menu(lang))
+
+    elif data == "barcode":
+        context.user_data["awaiting"] = "barcode_photo"
+        await q.edit_message_text(t("bc_ask_photo", lang))
 
     elif data == "invite":
         if payments.referral_enabled():

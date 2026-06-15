@@ -124,6 +124,15 @@ _GOAL_MODE_HINT = {
 }
 
 
+async def transcribe(audio_bytes: bytes, filename: str = "voice.ogg") -> str:
+    """Распознать речь из голосового сообщения (Whisper). Возвращает текст."""
+    resp = await _client.audio.transcriptions.create(
+        model="whisper-1",
+        file=(filename, audio_bytes),
+    )
+    return (resp.text or "").strip()
+
+
 async def diet_advice(goal: int, consumed: int, items_today: list,
                       goal_mode: str = "lose", macros: dict = None,
                       macro_goals: dict = None, lang: str = "ru") -> str:

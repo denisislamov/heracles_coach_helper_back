@@ -133,6 +133,17 @@ CREATE TABLE IF NOT EXISTS referrals (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Избранные блюда для быстрого повтора в один тап.
+CREATE TABLE IF NOT EXISTS favorites (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT NOT NULL,
+    name       TEXT NOT NULL,
+    calories   INTEGER NOT NULL,
+    protein_g  INTEGER, fat_g INTEGER, carb_g INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
+
 -- Утверждённые правки калорийности (на будущее — для уточнения распознавания).
 CREATE TABLE IF NOT EXISTS food_corrections (
     id          BIGSERIAL PRIMARY KEY,
@@ -528,6 +539,34 @@ async def add_referral(referrer_id: int, referred_id: int) -> bool:
         if row is not None:
             await conn.execute(
                 "UPDATE users SET referred_by=$2 WHERE user_id=$1", referred_id, referrer_id)
+        return row is not None
+
+
+async def add_favorite(user_id, name, calories, protein_g, fat_g, carb_g) -> int:
+    async with _pool.acquire() as conn:
+        return await conn.fetchval(
+            """INSERT INTO favorites (user_id, name, calories, protein_g, fat_g, carb_g)
+               VALUES ($1,$2,$3,$4,$5,$6) RETURNING id""",
+            user_id, name[:80], calories, protein_g, fat_g, carb_g)
+
+
+async def list_favorites(user_id: int, limit: int = 12) -> list:
+    async with _pool.acquire() as conn:
+        return await conn.fetch(
+            """SELECT * FROM favorites WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2""",
+            user_id, limit)
+
+
+async def get_favorite(fav_id: int, user_id: int):
+    async with _pool.acquire() as conn:
+        return await conn.fetchrow(
+            "SELECT * FROM favorites WHERE id=$1 AND user_id=$2", fav_id, user_id)
+
+
+async def delete_favorite(fav_id: int, user_id: int) -> bool:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM favorites WHERE id=$1 AND user_id=$2 RETURNING id", fav_id, user_id)
         return row is not None
 
 

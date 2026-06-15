@@ -107,6 +107,7 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("terms", payments.terms_cmd))
     app.add_handler(CommandHandler("paysupport", payments.paysupport_cmd))
     app.add_handler(MessageHandler(filters.PHOTO, handlers.on_photo))
+    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handlers.on_voice))
     app.add_handler(MessageHandler(filters.VIDEO, handlers.on_video))
     app.add_handler(MessageHandler(filters.Document.ALL, handlers.on_document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.on_text))

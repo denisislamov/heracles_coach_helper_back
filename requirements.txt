@@ -4,3 +4,5 @@ httpx==0.27.2
 asyncpg==0.30.0
 pytz==2024.2
 cryptography==43.0.3
+zxing-cpp==2.2.0
+pillow==10.4.0

@@ -102,6 +102,7 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("addpromo", payments.addpromo_cmd))
     app.add_handler(CommandHandler("refund", payments.refund_cmd))
     app.add_handler(CommandHandler("stats", payments.stats_cmd))
+    app.add_handler(CommandHandler("alpha_grant", payments.alpha_grant_cmd))
     app.add_handler(CommandHandler("setkey", payments.setkey_cmd))
     app.add_handler(CommandHandler("delkey", payments.delkey_cmd))
     app.add_handler(CommandHandler("terms", payments.terms_cmd))

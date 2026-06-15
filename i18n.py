@@ -176,6 +176,11 @@ _STR = {
         "promo_premium_days": "🎉 Промокод активирован: +{n} дней Premium!",
         "promo_premium_plus_days": "🎉 Промокод активирован: +{n} дней Premium+КБЖУ!",
         "promo_credits": "🎉 Промокод активирован: +{n} анализов!",
+        "alpha_gift": ("🎉 *Спасибо за участие в альфа-тесте Жиромера!*\n\n"
+                       "Мы включили платные тарифы. За помощь в разработке дарим тебе "
+                       "*3 месяца Premium+КБЖУ* — безлимитные анализы и расчёт белков, "
+                       "жиров и углеводов.\n\nУже активно, ничего делать не нужно. "
+                       "Спасибо, что был с нами с самого начала ❤️"),
         "promo_err_not_found": "Код не найден или неактивен.",
         "promo_err_expired": "Срок действия кода истёк.",
         "promo_err_limit": "Лимит активаций кода исчерпан.",
@@ -399,6 +404,11 @@ _STR = {
         "promo_premium_days": "🎉 Promo activated: +{n} days of Premium!",
         "promo_premium_plus_days": "🎉 Promo activated: +{n} days of Premium+Macros!",
         "promo_credits": "🎉 Promo activated: +{n} analyses!",
+        "alpha_gift": ("🎉 *Thanks for taking part in the Жиромер alpha test!*\n\n"
+                       "We've switched on paid plans. As a thank-you for helping us build "
+                       "the bot, here are *3 months of Premium+Macros* — unlimited analyses "
+                       "and protein/fat/carb tracking.\n\nIt's already active, nothing to do. "
+                       "Thanks for being with us from the start ❤️"),
         "promo_err_not_found": "Code not found or inactive.",
         "promo_err_expired": "This code has expired.",
         "promo_err_limit": "This code's activation limit is reached.",

@@ -401,6 +401,56 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         parse_mode="Markdown")
 
 
+SETTING_ALPHA_DONE = "alpha_grant_done"
+ALPHA_GIFT_DAYS = 90  # 3 месяца
+
+
+async def alpha_grant_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Одноразовая выдача 3 мес Premium+КБЖУ всем текущим юзерам + рассылка благодарности.
+
+    /alpha_grant ДА — подтверждение обязательно. Повторно не сработает.
+    """
+    import asyncio
+
+    uid = update.effective_user.id
+    if uid not in config.ADMIN_IDS:
+        await update.message.reply_text("Команда только для администратора.")
+        return
+    if await db.get_setting(SETTING_ALPHA_DONE) == "1":
+        await update.message.reply_text("⚠️ Альфа-подарок уже был разослан ранее. Повторно не выполняю.")
+        return
+    if not context.args or context.args[0].upper() not in ("ДА", "YES"):
+        users = await db.all_users()
+        await update.message.reply_text(
+            f"Выдать *{ALPHA_GIFT_DAYS // 30} мес Premium+КБЖУ* и разослать благодарность "
+            f"*{len(users)}* пользователям?\n\nЭто одноразовое действие. "
+            "Подтверди: `/alpha_grant ДА`",
+            parse_mode="Markdown")
+        return
+    # помечаем сразу, чтобы повторный запуск не задвоил при сбое посреди рассылки
+    await db.set_setting(SETTING_ALPHA_DONE, "1")
+    users = await db.all_users()
+    granted = sent = 0
+    for u in users:
+        try:
+            await db.set_plan(u["user_id"], "premium_plus")
+            await db.grant_premium_days(u["user_id"], ALPHA_GIFT_DAYS)
+            granted += 1
+        except Exception as e:
+            log.exception("alpha_grant: выдача %s: %s", u["user_id"], e)
+            continue
+        try:
+            await context.bot.send_message(
+                u["user_id"], t("alpha_gift", u["lang"] or "ru"), parse_mode="Markdown")
+            sent += 1
+            await asyncio.sleep(0.05)  # ~20 сообщений/сек — в пределах лимитов Telegram
+        except Exception:
+            pass  # заблокировавшие бота — пропускаем (подарок всё равно начислен)
+    await update.message.reply_text(
+        f"✅ Готово. Выдано Premium+КБЖУ: {granted}, доставлено сообщений: {sent} из {len(users)}.\n\n"
+        "Теперь включи монетизацию в админке (Настройки → тумблер).")
+
+
 async def setkey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lang = await _lang(update.effective_user.id)
     if not byok.enabled():

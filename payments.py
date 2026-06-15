@@ -471,9 +471,10 @@ async def terms_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def addpromo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Создать промокод (только для админов).
 
-    /addpromo КОД premium_days|credits ЗНАЧЕНИЕ [макс_активаций] [ГГГГ-ММ-ДД]
+    /addpromo КОД premium_days|premium_plus_days|credits ЗНАЧЕНИЕ [макс_активаций] [ГГГГ-ММ-ДД]
     Примеры:
       /addpromo WELCOME premium_days 7 100
+      /addpromo MACROS30 premium_plus_days 30 50 2026-12-31
       /addpromo BONUS10 credits 10 50 2026-12-31
     """
     uid = update.effective_user.id
@@ -481,9 +482,10 @@ async def addpromo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("Команда доступна только администратору.")
         return
     args = context.args
-    if len(args) < 3 or args[1] not in ("premium_days", "credits"):
+    if len(args) < 3 or args[1] not in ("premium_days", "premium_plus_days", "credits"):
         await update.message.reply_text(
-            "Формат: /addpromo КОД premium_days|credits ЗНАЧЕНИЕ [макс_активаций] [ГГГГ-ММ-ДД]")
+            "Формат: /addpromo КОД premium_days|premium_plus_days|credits ЗНАЧЕНИЕ "
+            "[макс_активаций] [ГГГГ-ММ-ДД]")
         return
     code = args[0].strip().upper()
     kind = args[1]

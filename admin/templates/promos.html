@@ -15,6 +15,7 @@
       <label class="muted">Тип</label>
       <select name="kind" id="kind">
         <option value="premium_days">Дни Premium</option>
+        <option value="premium_plus_days">Дни Premium+КБЖУ</option>
         <option value="credits">Анализы (кредиты)</option>
       </select>
     </div>
@@ -33,8 +34,9 @@
     <button class="primary" type="submit">Создать</button>
   </form>
   <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-    <button type="button" onclick="preset('FREEMONTH','premium_days',30)">⚡ Бесплатный месяц (30 дней)</button>
+    <button type="button" onclick="preset('FREEMONTH','premium_days',30)">⚡ Месяц Premium (30 дней)</button>
     <button type="button" onclick="preset('FREEWEEK','premium_days',7)">7 дней Premium</button>
+    <button type="button" onclick="preset('MACROS30','premium_plus_days',30)">Месяц Premium+КБЖУ</button>
     <button type="button" onclick="preset('TRY10','credits',10)">10 анализов</button>
   </div>
   <p class="muted" style="margin-top:8px">«Бесплатный месяц» = тип «Дни Premium», значение 30. Пользователь активирует в боте: <code>/promo КОД</code>.</p>
@@ -46,7 +48,7 @@
   {% for r in rows %}
   <tr>
     <td><b>{{ r.code }}</b></td>
-    <td>{{ 'дни Premium' if r.kind=='premium_days' else 'анализы' }}</td>
+    <td>{{ 'дни Premium' if r.kind=='premium_days' else ('дни Premium+КБЖУ' if r.kind=='premium_plus_days' else 'анализы') }}</td>
     <td>{{ r.value }}</td>
     <td>{{ r.used }} / {{ r.max_uses }}</td>
     <td class="muted">{{ r.expires_at.strftime('%d.%m.%Y') if r.expires_at else '—' }}</td>

@@ -206,7 +206,7 @@ def promos():
                 flash("Значение и лимит должны быть числами")
                 return redirect(url_for("promos"))
             expires = request.form.get("expires_at") or None
-            if not code or value <= 0 or kind not in ("premium_days", "credits"):
+            if not code or value <= 0 or kind not in ("premium_days", "premium_plus_days", "credits"):
                 flash("Заполни код, тип и положительное значение")
                 return redirect(url_for("promos"))
             try:

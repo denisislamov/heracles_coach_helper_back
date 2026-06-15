@@ -22,7 +22,7 @@
     <option value="byok" {{ 'selected' if flt=='byok' }}>Свой ключ (BYOK)</option>
   </select>
   <button class="primary" type="submit">Показать</button>
-  <span class="muted">Найдено: {{ rows|length }}</span>
+  <span class="muted">Найдено: {{ matched }}{% if pages > 1 %} · стр. {{ page }} из {{ pages }}{% endif %}</span>
 </form>
 
 {% if rows %}
@@ -55,6 +55,28 @@
   {% endfor %}
 </table>
 <p class="muted" style="margin-top:8px">🔁 — активная автопродляемая подписка · α — участник альфа-теста</p>
+
+{% if pages > 1 %}
+<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:16px">
+  {% if page > 1 %}
+    <a href="{{ url_for('users', q=q, filter=flt, page=page-1) }}"><button>← Назад</button></a>
+  {% endif %}
+  {% for p in range(1, pages + 1) %}
+    {% if p == page %}
+      <button class="primary" disabled>{{ p }}</button>
+    {% elif p <= 3 or p > pages - 3 or (p >= page - 2 and p <= page + 2) %}
+      <a href="{{ url_for('users', q=q, filter=flt, page=p) }}"><button>{{ p }}</button></a>
+    {% elif p == 4 and page > 6 %}
+      <span class="muted">…</span>
+    {% elif p == pages - 3 and page < pages - 5 %}
+      <span class="muted">…</span>
+    {% endif %}
+  {% endfor %}
+  {% if page < pages %}
+    <a href="{{ url_for('users', q=q, filter=flt, page=page+1) }}"><button>Вперёд →</button></a>
+  {% endif %}
+</div>
+{% endif %}
 {% else %}
 <p class="muted">Ничего не найдено.</p>
 {% endif %}

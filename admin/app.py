@@ -188,12 +188,23 @@ def users():
     elif flt == "paying":
         where.append("EXISTS (SELECT 1 FROM payments p WHERE p.user_id = u.user_id AND NOT p.is_refunded)")
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    PER_PAGE = 100
+    try:
+        page = max(1, int(request.args.get("page", "1")))
+    except ValueError:
+        page = 1
+    matched = query(f"SELECT count(*) c FROM users u {where_sql}", params, one=True)["c"]
+    pages = max(1, (matched + PER_PAGE - 1) // PER_PAGE)
+    page = min(page, pages)
+    offset = (page - 1) * PER_PAGE
     rows = query(
         f"""SELECT u.*,
                    (SELECT count(*) FROM referrals r WHERE r.referrer_id = u.user_id) AS ref_count,
                    (SELECT count(*) FROM entries e WHERE e.user_id = u.user_id) AS entries_count
             FROM users u {where_sql}
-            ORDER BY u.created_at DESC LIMIT 1000""", params) or []
+            ORDER BY u.created_at DESC LIMIT {PER_PAGE} OFFSET %s""",
+        params + [offset]) or []
     summary = {
         "total": query("SELECT count(*) c FROM users", one=True)["c"],
         "premium": query("SELECT count(*) c FROM users WHERE plan='premium' AND premium_until>now()", one=True)["c"],
@@ -201,7 +212,8 @@ def users():
         "alpha": query("SELECT count(*) c FROM users WHERE is_alpha", one=True)["c"],
     }
     return render_template("users.html", rows=rows, q=q, flt=flt, summary=summary,
-                           plan_label=_plan_label)
+                           plan_label=_plan_label, page=page, pages=pages,
+                           matched=matched, per_page=PER_PAGE)
 
 
 @app.route("/users/<int:uid>", methods=["GET", "POST"])

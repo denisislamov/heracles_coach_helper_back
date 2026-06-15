@@ -416,10 +416,17 @@ async def alpha_grant_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if uid not in config.ADMIN_IDS:
         await update.message.reply_text("Команда только для администратора.")
         return
-    if await db.get_setting(SETTING_ALPHA_DONE) == "1":
-        await update.message.reply_text("⚠️ Альфа-подарок уже был разослан ранее. Повторно не выполняю.")
+    arg = context.args[0].upper() if context.args else ""
+    if arg == "RESET":
+        await db.set_setting(SETTING_ALPHA_DONE, "0")
+        await update.message.reply_text("Флаг сброшен. Можно запустить выдачу заново: /alpha_grant ДА")
         return
-    if not context.args or context.args[0].upper() not in ("ДА", "YES"):
+    if await db.get_setting(SETTING_ALPHA_DONE) == "1":
+        await update.message.reply_text(
+            "⚠️ Альфа-подарок уже был разослан ранее. Повторно не выполняю.\n"
+            "Если нужно перезапустить — /alpha_grant RESET")
+        return
+    if arg not in ("ДА", "YES"):
         users = await db.all_users()
         await update.message.reply_text(
             f"Выдать *{ALPHA_GIFT_DAYS // 30} мес Premium+КБЖУ* и разослать благодарность "
@@ -427,16 +434,16 @@ async def alpha_grant_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             "Подтверди: `/alpha_grant ДА`",
             parse_mode="Markdown")
         return
-    # помечаем сразу, чтобы повторный запуск не задвоил при сбое посреди рассылки
-    await db.set_setting(SETTING_ALPHA_DONE, "1")
     users = await db.all_users()
     granted = sent = 0
+    last_err = None
     for u in users:
         try:
             await db.set_plan(u["user_id"], "premium_plus")
             await db.grant_premium_days(u["user_id"], ALPHA_GIFT_DAYS)
             granted += 1
         except Exception as e:
+            last_err = e
             log.exception("alpha_grant: выдача %s: %s", u["user_id"], e)
             continue
         try:
@@ -446,9 +453,16 @@ async def alpha_grant_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await asyncio.sleep(0.05)  # ~20 сообщений/сек — в пределах лимитов Telegram
         except Exception:
             pass  # заблокировавшие бота — пропускаем (подарок всё равно начислен)
-    await update.message.reply_text(
-        f"✅ Готово. Выдано Premium+КБЖУ: {granted}, доставлено сообщений: {sent} из {len(users)}.\n\n"
-        "Теперь включи монетизацию в админке (Настройки → тумблер).")
+    # фиксируем «выполнено» только если действительно выдали хоть кому-то
+    if granted:
+        await db.set_setting(SETTING_ALPHA_DONE, "1")
+        await update.message.reply_text(
+            f"✅ Готово. Выдано Premium+КБЖУ: {granted}, доставлено сообщений: {sent} из {len(users)}.\n\n"
+            "Теперь включи монетизацию в админке (Настройки → тумблер).")
+    else:
+        await update.message.reply_text(
+            f"❌ Не удалось выдать ни одному из {len(users)}. Флаг не ставлю, можно повторить.\n"
+            f"Последняя ошибка: {last_err}")
 
 
 async def setkey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

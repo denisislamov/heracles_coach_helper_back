@@ -354,7 +354,7 @@ async def grant_premium_days(user_id: int, days: int) -> None:
         await conn.execute(
             """UPDATE users
                SET premium_until = GREATEST(COALESCE(premium_until, now()), now())
-                                   + ($2 || ' days')::interval
+                                   + make_interval(days => $2)
                WHERE user_id = $1""",
             user_id, days,
         )
@@ -523,7 +523,7 @@ async def grant_referral_reward(user_id: int, days: int) -> None:
         await conn.execute(
             """UPDATE users
                SET premium_until = GREATEST(COALESCE(premium_until, now()), now())
-                                   + ($2 || ' days')::interval,
+                                   + make_interval(days => $2),
                    plan = CASE WHEN plan = 'free' THEN 'premium' ELSE plan END
                WHERE user_id = $1""",
             user_id, days)

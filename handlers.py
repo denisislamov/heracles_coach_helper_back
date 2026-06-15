@@ -417,13 +417,22 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(t("bc_not_found", u["lang"]))
         return
+    # обычное фото: сначала по-тихому пробуем штрих-код (бесплатно, без ИИ),
+    # и только если кода нет или товара нет в базе — оцениваем по картинке ИИ.
+    user = await db.get_user(update.effective_user.id)
+    photo = update.message.photo[-1]
+    tg_file = await photo.get_file()
+    img_bytes = bytes(await tg_file.download_as_bytearray())
+    code = barcode_mod.decode(img_bytes)
+    if code:
+        product = await foodfacts.lookup(code)
+        if product:
+            await _ask_bc_grams(update, context, product, user["lang"])
+            return
     mode, today, user = await _gate(update, context)
     if mode is None:
         return
     await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
-    photo = update.message.photo[-1]
-    tg_file = await photo.get_file()
-    img_bytes = bytes(await tg_file.download_as_bytearray())
     caption = update.message.caption
     result = await _run_estimate(update, user, mode, image_bytes=img_bytes, caption=caption)
     if result is None:
@@ -528,17 +537,22 @@ async def _analyze_food_text(update, context, text: str):
         await update.effective_message.reply_text(t("note_prefix", lang, note=note))
 
 
+async def _ask_bc_grams(update, context, product: dict, lang: str):
+    """Запомнить найденный продукт и спросить съеденную граммовку."""
+    context.user_data["bc_product"] = product
+    context.user_data["awaiting"] = "bc_grams"
+    await update.effective_message.reply_text(
+        t("bc_ask_grams", lang, name=product["name"], kcal=round(product["kcal_100g"])),
+        parse_mode="Markdown")
+
+
 async def _barcode_lookup(update, context, code: str, lang: str):
     """Найти продукт по коду в Open Food Facts и спросить граммовку."""
     product = await foodfacts.lookup(code)
     if not product:
         await update.effective_message.reply_text(t("bc_off_none", lang))
         return
-    context.user_data["bc_product"] = product
-    context.user_data["awaiting"] = "bc_grams"
-    await update.effective_message.reply_text(
-        t("bc_ask_grams", lang, name=product["name"], kcal=round(product["kcal_100g"])),
-        parse_mode="Markdown")
+    await _ask_bc_grams(update, context, product, lang)
 
 
 async def _barcode_finish(update, context, grams: int):

@@ -236,6 +236,14 @@ async def version_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(txt, parse_mode="Markdown")
 
 
+async def myid_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать свой Telegram user_id (нужен для ADMIN_IDS)."""
+    await update.message.reply_text(
+        f"Твой Telegram ID: `{update.effective_user.id}`\n"
+        "Добавь его в переменную ADMIN_IDS на сервисе, чтобы получить права администратора.",
+        parse_mode="Markdown")
+
+
 async def feedback_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.ensure_user(update.effective_user.id, update.effective_user.username)
     user = await db.get_user(update.effective_user.id)

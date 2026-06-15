@@ -93,6 +93,7 @@ def build_app() -> Application:
     app.add_handler(CommandHandler(["menu", "settings"], handlers.menu))
     app.add_handler(CommandHandler("help", handlers.help_cmd))
     app.add_handler(CommandHandler("version", handlers.version_cmd))
+    app.add_handler(CommandHandler("myid", handlers.myid_cmd))
     app.add_handler(CommandHandler("invite", handlers.invite_cmd))
     app.add_handler(CommandHandler("reset", handlers.reset_cmd))
     app.add_handler(CommandHandler("feedback", handlers.feedback_cmd))

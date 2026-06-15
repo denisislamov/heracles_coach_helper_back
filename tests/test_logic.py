@@ -90,6 +90,33 @@ def test_default_goal_by_mode():
     assert nutrition.default_goal("lose") < nutrition.default_goal("gain")
 
 
+def test_macro_tiers_athlete_vs_general():
+    # спортсмен получает больше белка, чем обычный человек при том же весе
+    w = 80
+    p_ath, _, _ = nutrition.macro_goals(2500, "maintain", weight_kg=w, athlete=True)
+    p_gen, _, _ = nutrition.macro_goals(2500, "maintain", weight_kg=w, athlete=False)
+    assert p_ath > p_gen
+    # обычный режим поддержания ≈ 0,8 г/кг (RDA)
+    assert abs(p_gen - round(0.8 * w)) <= 2
+    # спортивный режим в диапазоне 1,2–2,0 г/кг
+    assert 1.2 * w <= p_ath <= 2.0 * w + 1
+
+
+def test_macro_goals_sum_matches_calories():
+    # при известном весе сумма калорий из Б/Ж/У близка к цели
+    p, f, c = nutrition.macro_goals(2500, "maintain", weight_kg=80, athlete=True)
+    kcal = p * 4 + f * 9 + c * 4
+    assert abs(kcal - 2500) / 2500 < 0.06
+
+
+def test_macro_ai_params_clamped():
+    # значения вне безопасных границ зажимаются
+    p, f, c = nutrition.macro_goals(2500, "maintain", weight_kg=80,
+                                    protein_per_kg=9.0, fat_pct=99)
+    assert p <= round(2.2 * 80) + 1          # белок не выше 2,2 г/кг
+    assert f * 9 <= 2500 * 0.35 + 30         # жир не выше ~35% калорий
+
+
 def test_i18n_key_parity():
     ru = set(i18n._STR["ru"].keys())
     en = set(i18n._STR["en"].keys())

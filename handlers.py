@@ -496,7 +496,7 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _handle_fix_input(update, context, text)
         return
 
-    if awaiting in ("prof_age", "prof_height", "prof_weight"):
+    if awaiting in ("prof_age", "prof_height", "prof_weight", "prof_sport"):
         await _handle_profile_input(update, context, text)
         return
 
@@ -628,6 +628,14 @@ async def _handle_profile_input(update, context, text: str):
     awaiting = context.user_data.get("awaiting")
     prof = context.user_data.setdefault("prof", {})
     lang = (await db.get_user(update.effective_user.id))["lang"]
+    # вид спорта — свободный текст (последний шаг), а не число
+    if awaiting == "prof_sport":
+        sport = text.strip()
+        if sport.lower() in ("нет", "no", "-", "—", "не занимаюсь", "none"):
+            sport = ""
+        prof["sport"] = sport[:80]
+        await _finish_profile(update, context)
+        return
     m = re.search(r"\d{2,3}", text)
     if not m:
         await update.message.reply_text(t("enter_num", lang))
@@ -657,25 +665,46 @@ async def _handle_profile_input(update, context, text: str):
 
 
 async def _finish_profile(update, context):
-    """Все данные профиля собраны: считаем цель и сохраняем."""
+    """Все данные профиля собраны: считаем цель и КБЖУ (с учётом вида спорта) и сохраняем."""
     uid = update.effective_user.id
     prof = context.user_data.get("prof", {})
     user = await db.get_user(uid)
     lang = user["lang"]
     mode = user["goal_mode"] or "lose"
+    weight = prof["weight"]
+    activity = prof.get("activity")
+    sport = (prof.get("sport") or "").strip()
     cal = nutrition.calorie_goal(prof.get("sex"), prof["age"], prof["height"],
-                                 prof["weight"], prof.get("activity"), mode)
+                                 weight, activity, mode)
     await db.set_profile(uid, prof.get("sex"), prof["age"], prof["height"],
-                         prof["weight"], prof.get("activity"))
+                         weight, activity, sport or None)
     await db.set_goal(uid, cal)
+
+    # Нормы Б/Ж/У: если указан спорт — ИИ подбирает г/кг под него; иначе дефолт по активности.
+    note = None
+    params = None
+    if sport:
+        params = await ai.suggest_macro_profile(prof.get("sex"), prof["age"], prof["height"],
+                                                 weight, activity, mode, sport, lang)
+    if params:
+        p, f, c = nutrition.macro_goals(cal, mode, weight, athlete=params["athlete"],
+                                        protein_per_kg=params["protein_per_kg"],
+                                        fat_pct=params["fat_pct"])
+        note = params.get("note") or None
+    else:
+        p, f, c = nutrition.macro_goals(cal, mode, weight,
+                                        athlete=nutrition.is_athlete_activity(activity))
+    await db.set_macro_goals(uid, p, f, c)
+
     context.user_data.pop("prof", None)
     context.user_data.pop("awaiting", None)
     user = await db.get_user(uid)
     reports.schedule_user(context.application, user)
-    p, f, c = nutrition.goals_for_user(user)
+    msg = t("goal_calc", lang, cal=cal, p=p, f=f, c=c)
+    if note:
+        msg += "\n\n" + t("sport_note", lang, note=note)
     await update.effective_message.reply_text(
-        t("goal_calc", lang, cal=cal, p=p, f=f, c=c),
-        parse_mode="Markdown", reply_markup=kb.goal_confirm(lang))
+        msg, parse_mode="Markdown", reply_markup=kb.goal_confirm(lang))
 
 
 # --------------------------------------------------------- инлайн-кнопки
@@ -909,7 +938,8 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(t("ask_age", lang))
     elif data.startswith("pact:"):
         context.user_data.setdefault("prof", {})["activity"] = data.split(":")[1]
-        await _finish_profile(update, context)
+        context.user_data["awaiting"] = "prof_sport"
+        await q.edit_message_text(t("ask_sport", lang))
 
     elif data == "set_hour":
         await q.edit_message_text(t("hour_q", lang), reply_markup=kb.hours_menu(lang))

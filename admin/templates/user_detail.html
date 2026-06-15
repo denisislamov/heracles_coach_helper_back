@@ -26,6 +26,7 @@
           {{ u.sex or '?' }}, {{ u.age or '?' }} лет, {{ u.height_cm or '?' }} см, {{ u.weight_kg or '?' }} кг, {{ u.activity or '?' }}
         {% else %}<span class="muted">не заполнен</span>{% endif %}
       </td></tr>
+      <tr><td class="muted">Спорт</td><td>{{ u.sport or '—' }}</td></tr>
       <tr><td class="muted">Онбординг</td><td>{{ 'пройден' if u.onboarded else 'нет' }}</td></tr>
       <tr><td class="muted">Регистрация</td><td>{{ u.created_at.strftime('%d.%m.%Y %H:%M') }}</td></tr>
     </table>

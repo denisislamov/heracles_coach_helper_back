@@ -126,6 +126,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarded    BOOLEAN NOT NULL DEFAULT
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by  BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS lang         TEXT NOT NULL DEFAULT 'ru';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_alpha     BOOLEAN NOT NULL DEFAULT FALSE;  -- участник альфа-теста
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sport        TEXT;  -- вид спорта (ручной ввод) для подбора норм КБЖУ
 
 -- Рефералы: кто кого привёл (один реферал на нового пользователя).
 CREATE TABLE IF NOT EXISTS referrals (
@@ -217,7 +218,7 @@ async def update_settings(user_id: int, **fields) -> None:
     """Обновить произвольные поля настроек: timezone, daily_hour, weekly_dow, daily_on, weekly_on."""
     allowed = {"timezone", "daily_hour", "weekly_dow", "daily_on", "weekly_on", "goal",
                "reminders_on", "reminder_interval", "goal_mode",
-               "protein_goal", "fat_goal", "carb_goal", "onboarded", "lang"}
+               "protein_goal", "fat_goal", "carb_goal", "onboarded", "lang", "sport"}
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:
         return
@@ -509,12 +510,12 @@ async def mark_alpha(user_id: int) -> None:
         await conn.execute("UPDATE users SET is_alpha=TRUE WHERE user_id=$1", user_id)
 
 
-async def set_profile(user_id: int, sex, age, height_cm, weight_kg, activity) -> None:
+async def set_profile(user_id: int, sex, age, height_cm, weight_kg, activity, sport=None) -> None:
     async with _pool.acquire() as conn:
         await conn.execute(
-            """UPDATE users SET sex=$2, age=$3, height_cm=$4, weight_kg=$5, activity=$6
+            """UPDATE users SET sex=$2, age=$3, height_cm=$4, weight_kg=$5, activity=$6, sport=$7
                WHERE user_id=$1""",
-            user_id, sex, age, height_cm, weight_kg, activity)
+            user_id, sex, age, height_cm, weight_kg, activity, sport)
 
 
 async def set_macro_goals(user_id: int, protein: int, fat: int, carb: int) -> None:

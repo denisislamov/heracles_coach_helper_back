@@ -143,6 +143,7 @@ def activity_menu(lang: str = "ru") -> InlineKeyboardMarkup:
         [InlineKeyboardButton(t("act_light", lang), callback_data="pact:light")],
         [InlineKeyboardButton(t("act_mod", lang), callback_data="pact:moderate")],
         [InlineKeyboardButton(t("act_active", lang), callback_data="pact:active")],
+        [InlineKeyboardButton(t("act_vhigh", lang), callback_data="pact:very_active")],
     ])
 
 

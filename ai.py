@@ -133,6 +133,59 @@ async def transcribe(audio_bytes: bytes, filename: str = "voice.ogg") -> str:
     return (resp.text or "").strip()
 
 
+_MACRO_PROFILE_SYSTEM = (
+    "Ты — спортивный нутрициолог. По профилю и виду спорта подбираешь дневные нормы "
+    "макронутриентов, опираясь на действующие референсы:\n"
+    "• ACSM/AND/DC 'Nutrition and Athletic Performance' (2016) и ISSN (Jäger 2017, "
+    "Kerksick 2018): для регулярно тренирующихся белок 1,2–2,0 г/кг, углеводы 3–12 г/кг "
+    "(выносливость/большой объём — выше углеводы; сила/телосложение — выше белок).\n"
+    "• Для нетренирующихся / лёгкой активности — обычные нормы (DRI/ВОЗ): белок ~0,8–1,0 г/кг, "
+    "жиры 20–35% калорий, углеводы 45–65%.\n"
+    "Учитывай цель: похудение → выше белок (сохранить мышцы), набор → выше углеводы.\n"
+    "Поле athlete=true только если человек реально часто/интенсивно тренируется."
+)
+
+
+async def suggest_macro_profile(sex, age, height_cm, weight_kg, activity, goal_mode,
+                                sport: str, lang: str = "ru") -> Optional[dict]:
+    """По виду спорта и профилю вернуть рекомендованные нормы макросов.
+
+    Возвращает {"athlete": bool, "protein_per_kg": float, "fat_pct": int, "note": str}
+    или None при сбое/невалидном ответе. Значения вызывающий код дополнительно зажимает
+    в безопасные границы (nutrition.macro_goals).
+    """
+    goal_map = {"lose": "похудение (дефицит)", "maintain": "поддержание", "gain": "набор массы"}
+    prompt = (
+        f"Профиль: пол {sex}, возраст {age}, рост {height_cm} см, вес {weight_kg} кг, "
+        f"уровень активности '{activity}', цель — {goal_map.get(goal_mode, goal_mode)}. "
+        f"Вид спорта (со слов пользователя): «{sport}». "
+        "Подбери дневные нормы. Ответь ТОЛЬКО валидным JSON без markdown по схеме:\n"
+        '{"athlete": <bool>, "protein_per_kg": <float 0.8-2.2>, "fat_pct": <int 20-35>, '
+        '"note": <строка до 100 символов, кратко на языке пользователя>}'
+    )
+    try:
+        resp = await _client.chat.completions.create(
+            model=config.OPENAI_MODEL_FREE,
+            messages=[
+                {"role": "system", "content": _MACRO_PROFILE_SYSTEM
+                 + f"\nПоле note пиши на языке: {_LANG_NAME.get(lang, 'русском')}."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=200,
+            temperature=0.2,
+        )
+        data = json.loads(resp.choices[0].message.content)
+        return {
+            "athlete": bool(data.get("athlete")),
+            "protein_per_kg": float(data.get("protein_per_kg")),
+            "fat_pct": int(round(float(data.get("fat_pct")))),
+            "note": (data.get("note") or "").strip()[:200],
+        }
+    except Exception:
+        return None
+
+
 async def diet_advice(goal: int, consumed: int, items_today: list,
                       goal_mode: str = "lose", macros: dict = None,
                       macro_goals: dict = None, lang: str = "ru") -> str:

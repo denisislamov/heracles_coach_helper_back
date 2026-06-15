@@ -75,6 +75,10 @@ _STR = {
         "ask_activity": "Уровень активности?",
         "act_sed": "Сидячий образ", "act_light": "Лёгкая (1–3 р/нед)",
         "act_mod": "Средняя (3–5 р/нед)", "act_active": "Высокая (6–7 р/нед)",
+        "act_vhigh": "Очень высокая (2 трен./день)",
+        "ask_sport": "Каким спортом занимаешься? Напиши вид (напр. «бег», «силовые», "
+                     "«футбол 4 раза/нед») — подберу нормы Б/Ж/У точнее. Если нет — напиши «нет».",
+        "sport_note": "🏃 Под твой спорт: {note}",
         "goal_set": "🎯 Цель установлена: *{goal}* ккал/день.",
         "goal_calc": "📊 Рассчитал под твою цель: *{cal} ккал/день* · Б {p} · Ж {f} · У {c} г.\nПодходит или изменить?",
         "goal_ok": "✅ Подходит",
@@ -119,6 +123,9 @@ _STR = {
             "• ✍️ Просто текст блюда — оценю по описанию.\n"
             "• 🔢 Просто число (напр. `350`) — добавлю вручную.\n\n"
             "Ошибся? Под каждой записью кнопки *✏️ Исправить* и *🗑 Удалить*.\n"
+            "🥗 *КБЖУ* считаю по научным нормам (ВОЗ/DRI, для спорта — ACSM/ISSN) "
+            "под твою цель и активность. *Занимаешься спортом?* Укажи свой вид спорта "
+            "в профиле — подберу нормы белков/жиров/углеводов точнее.\n"
             "⚙️ Цель, режим и профиль — в /menu → Настройки.\n"
             "Меню — /menu."),
         "plans_title": "Тарифы:",
@@ -312,6 +319,10 @@ _STR = {
         "ask_activity": "Activity level?",
         "act_sed": "Sedentary", "act_light": "Light (1–3/wk)",
         "act_mod": "Moderate (3–5/wk)", "act_active": "High (6–7/wk)",
+        "act_vhigh": "Very high (2 sessions/day)",
+        "ask_sport": "What sport do you do? Type it (e.g. \"running\", \"strength\", "
+                     "\"soccer 4x/wk\") — I'll tune your protein/fat/carb targets. If none, type \"no\".",
+        "sport_note": "🏃 For your sport: {note}",
         "goal_set": "🎯 Goal set: *{goal}* kcal/day.",
         "goal_calc": "📊 Based on your goal: *{cal} kcal/day* · P {p} · F {f} · C {c} g.\nLooks good or change it?",
         "goal_ok": "✅ Looks good",
@@ -350,6 +361,9 @@ _STR = {
             "• ✍️ Just describe the dish in text.\n"
             "• 🔢 Just a number (e.g. `350`) — I'll add it manually.\n\n"
             "Mistake? Each entry has *✏️ Fix* and *🗑 Delete* buttons.\n"
+            "🥗 *Protein/fat/carbs* are calculated from science-based references "
+            "(WHO/DRI, and ACSM/ISSN for sport) to match your goal and activity. "
+            "*Do you play a sport?* Add it in your profile — I'll tune your macro targets.\n"
             "⚙️ Goal, mode and profile — in /menu → Settings.\n"
             "Menu — /menu."),
         "plans_title": "Plans:",

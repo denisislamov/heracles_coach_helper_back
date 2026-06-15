@@ -152,6 +152,116 @@ def analytics():
                            new_users_series=new_users_series, entries_series=entries_series)
 
 
+# ----------------------------------------------------------------- Пользователи
+def _plan_label(u) -> str:
+    import datetime as dt
+    active = u["premium_until"] and u["premium_until"] > dt.datetime.now(dt.timezone.utc)
+    base = {"free": "Free", "premium": "Premium", "premium_plus": "Premium+КБЖУ"}.get(u["plan"], u["plan"])
+    if u["plan"] != "free" and not active:
+        return base + " (истёк)"
+    return base
+
+
+@app.route("/users")
+@login_required
+def users():
+    q = (request.args.get("q") or "").strip()
+    flt = request.args.get("filter", "")  # '', alpha, premium, premium_plus, referred, byok, paying
+    where, params = [], []
+    if q:
+        if q.lstrip("-").isdigit():
+            where.append("(u.user_id = %s OR u.username ILIKE %s)")
+            params += [int(q), f"%{q}%"]
+        else:
+            where.append("u.username ILIKE %s")
+            params.append(f"%{q.lstrip('@')}%")
+    if flt == "alpha":
+        where.append("u.is_alpha = TRUE")
+    elif flt == "premium":
+        where.append("u.plan = 'premium' AND u.premium_until > now()")
+    elif flt == "premium_plus":
+        where.append("u.plan = 'premium_plus' AND u.premium_until > now()")
+    elif flt == "referred":
+        where.append("u.referred_by IS NOT NULL")
+    elif flt == "byok":
+        where.append("u.openai_key_enc IS NOT NULL")
+    elif flt == "paying":
+        where.append("EXISTS (SELECT 1 FROM payments p WHERE p.user_id = u.user_id AND NOT p.is_refunded)")
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    rows = query(
+        f"""SELECT u.*,
+                   (SELECT count(*) FROM referrals r WHERE r.referrer_id = u.user_id) AS ref_count,
+                   (SELECT count(*) FROM entries e WHERE e.user_id = u.user_id) AS entries_count
+            FROM users u {where_sql}
+            ORDER BY u.created_at DESC LIMIT 1000""", params) or []
+    summary = {
+        "total": query("SELECT count(*) c FROM users", one=True)["c"],
+        "premium": query("SELECT count(*) c FROM users WHERE plan='premium' AND premium_until>now()", one=True)["c"],
+        "premium_plus": query("SELECT count(*) c FROM users WHERE plan='premium_plus' AND premium_until>now()", one=True)["c"],
+        "alpha": query("SELECT count(*) c FROM users WHERE is_alpha", one=True)["c"],
+    }
+    return render_template("users.html", rows=rows, q=q, flt=flt, summary=summary,
+                           plan_label=_plan_label)
+
+
+@app.route("/users/<int:uid>", methods=["GET", "POST"])
+@login_required
+def user_detail(uid):
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "grant":
+            plan = request.form.get("plan", "premium")
+            try:
+                days = max(1, int(request.form.get("days", "30")))
+            except ValueError:
+                flash("Дни должны быть числом")
+                return redirect(url_for("user_detail", uid=uid))
+            if plan not in ("premium", "premium_plus"):
+                plan = "premium"
+            execute(
+                """UPDATE users
+                   SET premium_until = GREATEST(COALESCE(premium_until, now()), now())
+                                       + make_interval(days => %s),
+                       plan = %s
+                   WHERE user_id = %s""", (days, plan, uid))
+            flash(f"Выдано {days} дн. {plan} пользователю {uid}")
+        elif action == "revoke":
+            execute("UPDATE users SET premium_until = now(), plan='free' WHERE user_id=%s", (uid,))
+            flash(f"Premium отозван у {uid}")
+        elif action == "reset_limit":
+            execute("UPDATE users SET ai_count_today = 0 WHERE user_id=%s", (uid,))
+            flash(f"Дневной лимит сброшен у {uid}")
+        elif action == "toggle_alpha":
+            execute("UPDATE users SET is_alpha = NOT is_alpha WHERE user_id=%s", (uid,))
+            flash("Метка альфа-тестера переключена")
+        return redirect(url_for("user_detail", uid=uid))
+
+    u = query("SELECT * FROM users WHERE user_id=%s", (uid,), one=True)
+    if not u:
+        return "Пользователь не найден", 404
+    payments_rows = query(
+        "SELECT * FROM payments WHERE user_id=%s ORDER BY created_at DESC", (uid,)) or []
+    redemptions = query(
+        "SELECT * FROM redemptions WHERE user_id=%s ORDER BY redeemed_at DESC", (uid,)) or []
+    refs = query(
+        """SELECT r.referred_id, r.created_at, ru.username
+           FROM referrals r LEFT JOIN users ru ON ru.user_id = r.referred_id
+           WHERE r.referrer_id=%s ORDER BY r.created_at DESC""", (uid,)) or []
+    referred_by = None
+    if u["referred_by"]:
+        referred_by = query("SELECT user_id, username FROM users WHERE user_id=%s",
+                            (u["referred_by"],), one=True)
+    recent = query(
+        "SELECT * FROM entries WHERE user_id=%s ORDER BY created_at DESC LIMIT 15", (uid,)) or []
+    totals = query(
+        """SELECT count(*) cnt, COALESCE(SUM(amount_stars),0) stars
+           FROM payments WHERE user_id=%s AND NOT is_refunded""", (uid,), one=True)
+    return render_template("user_detail.html", u=u, payments=payments_rows,
+                           redemptions=redemptions, refs=refs, referred_by=referred_by,
+                           recent=recent, totals=totals, plan_label=_plan_label,
+                           star_usd=STAR_USD)
+
+
 # ----------------------------------------------------------------- Баг-репорты
 @app.route("/bugs", methods=["GET", "POST"])
 @login_required

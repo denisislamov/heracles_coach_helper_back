@@ -125,6 +125,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS carb_goal    INTEGER;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarded    BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by  BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS lang         TEXT NOT NULL DEFAULT 'ru';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_alpha     BOOLEAN NOT NULL DEFAULT FALSE;  -- участник альфа-теста
 
 -- Рефералы: кто кого привёл (один реферал на нового пользователя).
 CREATE TABLE IF NOT EXISTS referrals (
@@ -500,6 +501,12 @@ async def clear_openai_key(user_id: int) -> None:
 async def set_plan(user_id: int, plan: str) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("UPDATE users SET plan=$2 WHERE user_id=$1", user_id, plan)
+
+
+async def mark_alpha(user_id: int) -> None:
+    """Пометить пользователя как участника альфа-теста."""
+    async with _pool.acquire() as conn:
+        await conn.execute("UPDATE users SET is_alpha=TRUE WHERE user_id=$1", user_id)
 
 
 async def set_profile(user_id: int, sex, age, height_cm, weight_kg, activity) -> None:

@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% set active = 'users' %}
+{% block content %}
+<p style="margin-bottom:10px"><a href="{{ url_for('users') }}" class="muted">← Ко всем пользователям</a></p>
+<h1>
+  {% if u.username %}@{{ u.username }}{% else %}Без username{% endif %}
+  <span class="muted" style="font-size:15px">· <code>{{ u.user_id }}</code></span>
+  {% if u.is_alpha %} <span class="badge done">α альфа-тестер</span>{% endif %}
+</h1>
+
+<div class="grid2">
+  <!-- Профиль и подписка -->
+  <div class="card">
+    <h3 style="margin:0 0 12px">Профиль и подписка</h3>
+    <table style="border:none">
+      <tr><td class="muted">Тариф</td><td><b>{{ plan_label(u) }}</b></td></tr>
+      <tr><td class="muted">Подписка до</td><td>{{ u.premium_until.strftime('%d.%m.%Y %H:%M') if u.premium_until else '—' }}</td></tr>
+      <tr><td class="muted">Автопродление</td><td>{{ 'да (🔁)' if u.sub_charge_id else 'нет' }}</td></tr>
+      <tr><td class="muted">Кредиты (анализы)</td><td>{{ u.credits }}</td></tr>
+      <tr><td class="muted">Использовано сегодня</td><td>{{ u.ai_count_today }} ({{ u.ai_count_date or '—' }})</td></tr>
+      <tr><td class="muted">Свой ключ (BYOK)</td><td>{{ 'да' if u.openai_key_enc else 'нет' }}</td></tr>
+      <tr><td class="muted">Язык</td><td>{{ u.lang }}</td></tr>
+      <tr><td class="muted">Цель</td><td>{{ {'lose':'похудение','maintain':'поддержание','gain':'набор'}.get(u.goal_mode, u.goal_mode) }}{% if u.goal %}, {{ u.goal }} ккал{% endif %}</td></tr>
+      <tr><td class="muted">Профиль</td><td>
+        {% if u.sex or u.age or u.height_cm or u.weight_kg %}
+          {{ u.sex or '?' }}, {{ u.age or '?' }} лет, {{ u.height_cm or '?' }} см, {{ u.weight_kg or '?' }} кг, {{ u.activity or '?' }}
+        {% else %}<span class="muted">не заполнен</span>{% endif %}
+      </td></tr>
+      <tr><td class="muted">Онбординг</td><td>{{ 'пройден' if u.onboarded else 'нет' }}</td></tr>
+      <tr><td class="muted">Регистрация</td><td>{{ u.created_at.strftime('%d.%m.%Y %H:%M') }}</td></tr>
+    </table>
+  </div>
+
+  <!-- Действия -->
+  <div class="card">
+    <h3 style="margin:0 0 12px">Действия</h3>
+    <form method="post" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:14px">
+      <input type="hidden" name="action" value="grant">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label class="muted">Тариф</label>
+        <select name="plan">
+          <option value="premium">Premium</option>
+          <option value="premium_plus">Premium+КБЖУ</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label class="muted">Дней</label>
+        <input name="days" type="number" min="1" value="30" style="width:80px">
+      </div>
+      <button class="primary" type="submit">Выдать / продлить</button>
+    </form>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <form method="post" onsubmit="return confirm('Отозвать Premium и вернуть на Free?')">
+        <input type="hidden" name="action" value="revoke">
+        <button type="submit">Отозвать Premium</button>
+      </form>
+      <form method="post">
+        <input type="hidden" name="action" value="reset_limit">
+        <button type="submit">Сбросить дневной лимит</button>
+      </form>
+      <form method="post">
+        <input type="hidden" name="action" value="toggle_alpha">
+        <button type="submit">{{ 'Снять метку α' if u.is_alpha else 'Отметить как α' }}</button>
+      </form>
+    </div>
+    <p class="muted" style="margin-top:10px">Изменения подхватываются ботом сразу (план/подписка читаются из БД при каждом запросе).</p>
+  </div>
+</div>
+
+<!-- Платежи -->
+<h3 style="margin:22px 0 10px">💳 Платежи · всего {{ totals.cnt }} на {{ totals.stars }}★ (≈ ${{ '%.2f'|format(totals.stars * star_usd) }})</h3>
+{% if payments %}
+<table>
+  <tr><th>Дата</th><th>Тип</th><th>Звёзд</th><th>charge_id</th><th>Статус</th></tr>
+  {% for p in payments %}
+  <tr>
+    <td class="muted">{{ p.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+    <td>{{ {'premium_sub':'Premium','premium_macros_sub':'Premium+КБЖУ'}.get(p.payload, p.payload) }}</td>
+    <td>{{ p.amount_stars }}★</td>
+    <td class="muted"><code>{{ p.charge_id }}</code></td>
+    <td>{% if p.is_refunded %}<span class="badge new">возврат</span>{% else %}<span class="badge done">ок</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<p class="muted">Платежей нет.</p>{% endif %}
+
+<!-- Промокоды и рефералы -->
+<div class="grid2" style="margin-top:22px">
+  <div>
+    <h3 style="margin:0 0 10px">🎟 Активированные промокоды</h3>
+    {% if redemptions %}
+    <table>
+      <tr><th>Код</th><th>Когда</th></tr>
+      {% for r in redemptions %}
+      <tr><td><b>{{ r.code }}</b></td><td class="muted">{{ r.redeemed_at.strftime('%d.%m.%Y %H:%M') }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">Нет.</p>{% endif %}
+  </div>
+  <div>
+    <h3 style="margin:0 0 10px">🔗 Рефералы</h3>
+    <p class="muted" style="margin:0 0 8px">
+      Пришёл по приглашению:
+      {% if referred_by %}<a href="{{ url_for('user_detail', uid=referred_by.user_id) }}">@{{ referred_by.username or referred_by.user_id }}</a>{% else %}нет{% endif %}
+      · Привёл друзей: <b>{{ refs|length }}</b>
+    </p>
+    {% if refs %}
+    <table>
+      <tr><th>Кого привёл</th><th>Когда</th></tr>
+      {% for r in refs %}
+      <tr>
+        <td><a href="{{ url_for('user_detail', uid=r.referred_id) }}">@{{ r.username or r.referred_id }}</a></td>
+        <td class="muted">{{ r.created_at.strftime('%d.%m.%Y') }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Активность -->
+<h3 style="margin:22px 0 10px">🍽 Последние записи</h3>
+{% if recent %}
+<table>
+  <tr><th>Дата</th><th>Блюдо</th><th>Ккал</th><th>Б/Ж/У</th></tr>
+  {% for e in recent %}
+  <tr>
+    <td class="muted">{{ e.entry_date.strftime('%d.%m.%Y') }}</td>
+    <td>{{ e.item or '—' }}</td>
+    <td>{{ e.calories }}</td>
+    <td class="muted">{{ e.protein_g if e.protein_g is not none else '—' }} / {{ e.fat_g if e.fat_g is not none else '—' }} / {{ e.carb_g if e.carb_g is not none else '—' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<p class="muted">Записей нет.</p>{% endif %}
+{% endblock %}

@@ -441,6 +441,7 @@ async def alpha_grant_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         try:
             await db.set_plan(u["user_id"], "premium_plus")
             await db.grant_premium_days(u["user_id"], ALPHA_GIFT_DAYS)
+            await db.mark_alpha(u["user_id"])
             granted += 1
         except Exception as e:
             last_err = e

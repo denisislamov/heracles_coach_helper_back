@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% set active = 'users' %}
+{% block content %}
+<h1>👥 Пользователи</h1>
+
+<div class="cards">
+  <div class="card"><div class="label">Всего</div><div class="value">{{ summary.total }}</div></div>
+  <div class="card"><div class="label">Premium активных</div><div class="value">{{ summary.premium }}</div></div>
+  <div class="card"><div class="label">Premium+КБЖУ активных</div><div class="value">{{ summary.premium_plus }}</div></div>
+  <div class="card"><div class="label">Альфа-тестеров</div><div class="value">{{ summary.alpha }}</div></div>
+</div>
+
+<form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+  <input name="q" value="{{ q }}" placeholder="Поиск: ID или @username" style="min-width:240px">
+  <select name="filter">
+    <option value="" {{ 'selected' if flt=='' }}>Все</option>
+    <option value="premium" {{ 'selected' if flt=='premium' }}>Premium активный</option>
+    <option value="premium_plus" {{ 'selected' if flt=='premium_plus' }}>Premium+КБЖУ активный</option>
+    <option value="alpha" {{ 'selected' if flt=='alpha' }}>Альфа-тестеры</option>
+    <option value="referred" {{ 'selected' if flt=='referred' }}>Пришли по реферралу</option>
+    <option value="paying" {{ 'selected' if flt=='paying' }}>Платившие</option>
+    <option value="byok" {{ 'selected' if flt=='byok' }}>Свой ключ (BYOK)</option>
+  </select>
+  <button class="primary" type="submit">Показать</button>
+  <span class="muted">Найдено: {{ rows|length }}</span>
+</form>
+
+{% if rows %}
+<table>
+  <tr>
+    <th>ID</th><th>Username</th><th>Тариф</th><th>Подписка до</th><th>Цель</th>
+    <th>Яз.</th><th>Кред.</th><th>Реф.</th><th>Записей</th><th>Регистрация</th><th></th>
+  </tr>
+  {% for r in rows %}
+  <tr>
+    <td><code>{{ r.user_id }}</code></td>
+    <td>
+      {% if r.username %}@{{ r.username }}{% else %}<span class="muted">—</span>{% endif %}
+      {% if r.is_alpha %} <span class="badge done">α</span>{% endif %}
+    </td>
+    <td>
+      {% if r.plan == 'premium_plus' %}<span class="badge in_progress">{{ plan_label(r) }}</span>
+      {% elif r.plan == 'premium' %}<span class="badge done">{{ plan_label(r) }}</span>
+      {% else %}<span class="muted">Free</span>{% endif %}
+    </td>
+    <td class="muted">{{ r.premium_until.strftime('%d.%m.%Y') if r.premium_until else '—' }}{% if r.sub_charge_id %} 🔁{% endif %}</td>
+    <td class="muted">{{ {'lose':'похудение','maintain':'поддержание','gain':'набор'}.get(r.goal_mode, r.goal_mode) }}{% if r.goal %}, {{ r.goal }}{% endif %}</td>
+    <td class="muted">{{ r.lang }}</td>
+    <td class="muted">{{ r.credits }}</td>
+    <td class="muted">{{ r.ref_count }}</td>
+    <td class="muted">{{ r.entries_count }}</td>
+    <td class="muted">{{ r.created_at.strftime('%d.%m.%Y') }}</td>
+    <td><a href="{{ url_for('user_detail', uid=r.user_id) }}">Открыть →</a></td>
+  </tr>
+  {% endfor %}
+</table>
+<p class="muted" style="margin-top:8px">🔁 — активная автопродляемая подписка · α — участник альфа-теста</p>
+{% else %}
+<p class="muted">Ничего не найдено.</p>
+{% endif %}
+{% endblock %}

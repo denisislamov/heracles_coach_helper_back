@@ -3,7 +3,8 @@ services:
   - type: web
     name: zhiromer
     runtime: python
-    plan: free
+    # plan не задаём специально: Render сохраняет текущий тариф сервиса,
+    # его можно менять в дашборде, и синк Blueprint не будет его перезатирать.
     buildCommand: pip install --timeout 120 --retries 10 -r requirements.txt
     startCommand: python main.py
     # healthCheckPath не задаём: Render проверит, что процесс слушает порт.
@@ -69,7 +70,7 @@ services:
   - type: web
     name: zhiromer-admin
     runtime: python
-    plan: free
+    # plan не задаём: Render сохраняет текущий тариф сервиса.
     rootDir: admin
     buildCommand: pip install --timeout 120 --retries 10 -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
@@ -99,7 +100,7 @@ services:
   - type: web
     name: zhiromer-site
     runtime: python
-    plan: free
+    # plan не задаём: Render сохраняет текущий тариф сервиса.
     rootDir: site
     buildCommand: pip install --timeout 120 --retries 10 -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
@@ -115,6 +116,6 @@ services:
 
 databases:
   - name: zhiromer-db
-    plan: basic-256mb        # фактический тариф БД (free вызывал ошибку даунгрейда при синке)
+    # plan не задаём: Render сохраняет текущий тариф базы (нельзя даунгрейдить).
     databaseName: calorie_bot
     user: calorie_bot

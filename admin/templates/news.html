@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% set active = 'news' %}
+{% block content %}
+<h1>📰 Новости лендинга</h1>
+
+<div class="card" style="margin-bottom:18px">
+  <h3 style="margin:0 0 12px">{{ 'Редактировать новость' if edit else 'Новая новость' }}</h3>
+  <form method="post" style="display:flex;flex-direction:column;gap:10px">
+    <input type="hidden" name="action" value="save">
+    {% if edit %}<input type="hidden" name="id" value="{{ edit.id }}">{% endif %}
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label class="muted">Заголовок (RU)</label>
+      <input name="title_ru" required value="{{ edit.title_ru if edit else '' }}">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label class="muted">Текст (RU) — абзацы разделяй пустой строкой</label>
+      <textarea name="body_ru" rows="5" required>{{ edit.body_ru if edit else '' }}</textarea>
+    </div>
+    <div class="grid2">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label class="muted">Title (EN) — опц.</label>
+        <input name="title_en" value="{{ edit.title_en if edit else '' }}">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label class="muted">Slug (для нового, опц.)</label>
+        <input name="slug" placeholder="авто из заголовка" {{ 'disabled' if edit }}>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label class="muted">Body (EN) — опц.</label>
+      <textarea name="body_en" rows="5">{{ edit.body_en if edit else '' }}</textarea>
+    </div>
+    <label><input type="checkbox" name="published" {{ 'checked' if edit and edit.published }}> Опубликовать</label>
+    <div style="display:flex;gap:8px">
+      <button class="primary" type="submit">Сохранить</button>
+      {% if edit %}<a href="{{ url_for('news_admin') }}"><button type="button">Отмена</button></a>{% endif %}
+    </div>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:22px">
+  <h3 style="margin:0 0 10px">🤖 Черновик с помощью ИИ</h3>
+  <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+    <input type="hidden" name="action" value="ai_draft">
+    <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:280px">
+      <label class="muted">Тема / о чём новость</label>
+      <input name="topic" placeholder="напр. запустили распознавание по штрих-коду">
+    </div>
+    <button class="primary" type="submit">Сгенерировать черновик</button>
+  </form>
+  <p class="muted" style="margin:8px 0 0">ИИ создаст неопубликованный черновик (RU+EN) — потом проверишь и опубликуешь.</p>
+</div>
+
+{% if rows %}
+<table>
+  <tr><th>Дата</th><th>Заголовок</th><th>Slug</th><th>Статус</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td class="muted">{{ (r.published_at or r.created_at).strftime('%d.%m.%Y') }}</td>
+    <td>{{ r.title_ru }}{% if r.title_en %} <span class="muted">/ {{ r.title_en }}</span>{% endif %}</td>
+    <td class="muted"><code>{{ r.slug }}</code></td>
+    <td>{% if r.published %}<span class="badge done">опубл.</span>{% else %}<span class="badge new">черновик</span>{% endif %}</td>
+    <td style="display:flex;gap:6px">
+      <a href="{{ url_for('news_admin', edit=r.id) }}"><button type="button">✏️</button></a>
+      <form method="post"><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="{{ r.id }}">
+        <button type="submit">{{ 'Снять' if r.published else 'Опубл.' }}</button></form>
+      <form method="post" onsubmit="return confirm('Удалить новость?')"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="{{ r.id }}">
+        <button type="submit">🗑</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Новостей пока нет.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ tr.news_title }} — {{ site_name }}{% endblock %}
+{% block content %}
+<section class="page">
+  <h1>{{ tr.news_title }}</h1>
+  {% if news %}
+  <div class="news-grid wide">
+    {% for n in news %}
+    <a class="news-card" href="{{ url_for('news_detail', slug=n.slug) }}">
+      <span class="news-date">{{ n.date.strftime('%d.%m.%Y') }}</span>
+      <h3>{{ n.title }}</h3>
+      <p class="muted">{{ n.excerpt }}{% if n.excerpt|length >= 180 %}…{% endif %}</p>
+      <span class="news-read">{{ tr.read }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">{{ tr.news_empty }}</p>
+  {% endif %}
+</section>
+{% endblock %}

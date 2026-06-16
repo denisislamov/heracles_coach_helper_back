@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}404 — {{ site_name }}{% endblock %}
+{% block content %}
+<section class="page" style="text-align:center">
+  <h1>404</h1>
+  <p class="muted">{{ tr.news_empty if false else '' }}</p>
+  <a class="btn btn-lg" href="{{ url_for('index') }}">{{ tr.nav_home }}</a>
+</section>
+{% endblock %}

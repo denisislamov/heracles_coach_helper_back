@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="hero">
+  <div class="hero-text">
+    <h1>{{ site_name }} — <span class="accent">{{ tr.tagline }}</span></h1>
+    <p class="lead">{{ tr.hero_sub }}</p>
+    <a class="btn btn-lg" href="{{ bot_url }}" target="_blank" rel="noopener">{{ tr.cta }}</a>
+  </div>
+  <div class="hero-img">
+    <img src="{{ url_for('static', filename='img/mascot.png') }}" alt="{{ site_name }}">
+  </div>
+</section>
+
+<section class="features" id="features">
+  <h2>{{ tr.features_title }}</h2>
+  <div class="feature-grid">
+    <div class="feature"><div class="ficon">📷</div><h3>{{ tr.f1_t }}</h3><p>{{ tr.f1_d }}</p></div>
+    <div class="feature"><div class="ficon">🎯</div><h3>{{ tr.f2_t }}</h3><p>{{ tr.f2_d }}</p></div>
+    <div class="feature"><div class="ficon">🥗</div><h3>{{ tr.f3_t }}</h3><p>{{ tr.f3_d }}</p></div>
+    <div class="feature"><div class="ficon">📊</div><h3>{{ tr.f4_t }}</h3><p>{{ tr.f4_d }}</p></div>
+    <div class="feature"><div class="ficon">✏️</div><h3>{{ tr.f5_t }}</h3><p>{{ tr.f5_d }}</p></div>
+    <div class="feature free"><div class="ficon">🎁</div><h3>{{ tr.free_t }}</h3><p>{{ tr.free_d }}</p></div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <h2>{{ tr.cta }}</h2>
+  <a class="btn btn-lg" href="{{ bot_url }}" target="_blank" rel="noopener">@zhiromer_bot</a>
+</section>
+
+{% if news %}
+<section class="news-teaser">
+  <div class="section-head">
+    <h2>{{ tr.news_title }}</h2>
+    <a href="{{ url_for('news_list') }}">{{ tr.news_all }}</a>
+  </div>
+  <div class="news-grid">
+    {% for n in news %}
+    <a class="news-card" href="{{ url_for('news_detail', slug=n.slug) }}">
+      <span class="news-date">{{ n.date.strftime('%d.%m.%Y') }}</span>
+      <h3>{{ n.title }}</h3>
+      <span class="news-read">{{ tr.read }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% endblock %}

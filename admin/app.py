@@ -348,6 +348,116 @@ def promos():
     return render_template("promos.html", rows=rows)
 
 
+# ----------------------------------------------------------------- Новости (лендинг)
+import re as _re
+
+
+def _slugify(text: str) -> str:
+    translit = {
+        'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i',
+        'й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t',
+        'у':'u','ф':'f','х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'',
+        'э':'e','ю':'yu','я':'ya','і':'i','ї':'yi','є':'e',
+    }
+    s = (text or "").lower()
+    s = "".join(translit.get(ch, ch) for ch in s)
+    s = _re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return (s or "news")[:60]
+
+
+def _news_ai_draft(topic: str) -> dict:
+    """Сгенерировать черновик новости (RU+EN) по теме через OpenAI. Возвращает dict полей."""
+    if not OPENAI_API_KEY:
+        return {"error": "OPENAI_API_KEY не задан для админки"}
+    system = (
+        "Ты — копирайтер Telegram-бота для подсчёта калорий «Жиромер». Пиши короткие "
+        "новости/анонсы для лендинга: живо, по делу, без воды. Верни строго JSON: "
+        '{"title_ru","body_ru","title_en","body_en"}. body — 1–3 абзаца, абзацы '
+        "разделяй пустой строкой. EN — качественный перевод RU."
+    )
+    try:
+        r = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            json={"model": OPENAI_MODEL_ADMIN,
+                  "messages": [{"role": "system", "content": system},
+                               {"role": "user", "content": f"Тема новости: {topic}"}],
+                  "response_format": {"type": "json_object"},
+                  "max_tokens": 700, "temperature": 0.6},
+            timeout=60)
+        import json as _json
+        return _json.loads(r.json()["choices"][0]["message"]["content"])
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.route("/news", methods=["GET", "POST"])
+@login_required
+def news_admin():
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "ai_draft":
+            topic = (request.form.get("topic") or "").strip()
+            if not topic:
+                flash("Укажи тему для ИИ-черновика")
+                return redirect(url_for("news_admin"))
+            d = _news_ai_draft(topic)
+            if d.get("error"):
+                flash(f"ИИ-черновик не удался: {d['error']}")
+                return redirect(url_for("news_admin"))
+            slug = _slugify(d.get("title_ru", topic)) + "-" + dt_now_suffix()
+            execute(
+                """INSERT INTO news (slug, title_ru, body_ru, title_en, body_en, published)
+                   VALUES (%s,%s,%s,%s,%s,FALSE)""",
+                (slug, d.get("title_ru", topic)[:300], d.get("body_ru", ""),
+                 d.get("title_en"), d.get("body_en")))
+            flash("Черновик создан ИИ — проверь и опубликуй")
+            return redirect(url_for("news_admin"))
+        if action == "delete":
+            execute("DELETE FROM news WHERE id=%s", (request.form["id"],))
+            return redirect(url_for("news_admin"))
+        if action == "toggle":
+            execute("""UPDATE news SET published = NOT published,
+                       published_at = CASE WHEN published THEN published_at ELSE now() END
+                       WHERE id=%s""", (request.form["id"],))
+            return redirect(url_for("news_admin"))
+        # create / update
+        nid = request.form.get("id") or None
+        title_ru = (request.form.get("title_ru") or "").strip()
+        body_ru = (request.form.get("body_ru") or "").strip()
+        if not title_ru or not body_ru:
+            flash("Заголовок и текст (RU) обязательны")
+            return redirect(url_for("news_admin"))
+        title_en = (request.form.get("title_en") or "").strip() or None
+        body_en = (request.form.get("body_en") or "").strip() or None
+        published = request.form.get("published") == "on"
+        if nid:
+            execute("""UPDATE news SET title_ru=%s, body_ru=%s, title_en=%s, body_en=%s,
+                       published=%s, published_at=COALESCE(published_at, CASE WHEN %s THEN now() END)
+                       WHERE id=%s""",
+                    (title_ru, body_ru, title_en, body_en, published, published, nid))
+        else:
+            slug = (request.form.get("slug") or "").strip() or _slugify(title_ru)
+            slug = _slugify(slug) + "-" + dt_now_suffix()
+            execute("""INSERT INTO news (slug, title_ru, body_ru, title_en, body_en,
+                       published, published_at)
+                       VALUES (%s,%s,%s,%s,%s,%s, CASE WHEN %s THEN now() END)""",
+                    (slug, title_ru, body_ru, title_en, body_en, published, published))
+        flash("Новость сохранена")
+        return redirect(url_for("news_admin"))
+
+    rows = query("SELECT * FROM news ORDER BY created_at DESC") or []
+    edit = None
+    if request.args.get("edit"):
+        edit = query("SELECT * FROM news WHERE id=%s", (request.args["edit"],), one=True)
+    return render_template("news.html", rows=rows, edit=edit)
+
+
+def dt_now_suffix() -> str:
+    import datetime as _dt
+    return _dt.datetime.now().strftime("%m%d%H%M")
+
+
 # ----------------------------------------------------------------- Настройки
 def _get_setting(key, default=""):
     row = query("SELECT value FROM settings WHERE key=%s", (key,), one=True)

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site_name }} — {{ tr.tagline }}{% endblock %}</title>
+  <meta name="description" content="{{ tr.hero_sub }}">
+  <meta property="og:title" content="{{ site_name }} — {{ tr.tagline }}">
+  <meta property="og:description" content="{{ tr.hero_sub }}">
+  <meta property="og:image" content="{{ url_for('static', filename='img/hero.png', _external=True) }}">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="{{ url_for('static', filename='img/mascot.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="{{ url_for('index') }}">
+    <img src="{{ url_for('static', filename='img/mascot.png') }}" alt="{{ site_name }}" class="brand-logo">
+    <span>{{ site_name }}</span>
+  </a>
+  <nav>
+    <a href="{{ url_for('index') }}">{{ tr.nav_home }}</a>
+    <a href="{{ url_for('news_list') }}">{{ tr.nav_news }}</a>
+    <a class="btn btn-sm" href="{{ bot_url }}" target="_blank" rel="noopener">{{ tr.cta }}</a>
+    <span class="lang-switch">
+      {% for l in langs %}
+        <a href="{{ url_for('set_lang', lang=l) }}" class="{{ 'on' if l == lang }}">{{ l|upper }}</a>
+      {% endfor %}
+    </span>
+  </nav>
+</header>
+
+<main>
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+  <img src="{{ url_for('static', filename='img/mascot.png') }}" alt="" class="footer-logo">
+  <p>{{ tr.footer }}</p>
+  <p class="footer-links">
+    <a href="{{ bot_url }}" target="_blank" rel="noopener">{{ tr.cta }}</a> ·
+    <a href="{{ url_for('news_list') }}">{{ tr.nav_news }}</a>
+  </p>
+  <p class="muted">© {{ now_year }} {{ site_name }}</p>
+</footer>
+</body>
+</html>

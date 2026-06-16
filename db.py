@@ -160,6 +160,20 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- Новости для публичного лендинга (создаются в админке / генерируются ИИ).
+CREATE TABLE IF NOT EXISTS news (
+    id           BIGSERIAL PRIMARY KEY,
+    slug         TEXT UNIQUE NOT NULL,
+    title_ru     TEXT NOT NULL,
+    body_ru      TEXT NOT NULL,
+    title_en     TEXT,
+    body_en      TEXT,
+    published    BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    published_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_news_pub ON news(published, published_at DESC);
 """
 
 

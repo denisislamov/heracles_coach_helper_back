@@ -33,7 +33,7 @@ def _plans_table(lang: str = "ru") -> str:
     """Компактная таблица тарифов (моноширинный блок)."""
     fd = payments.free_daily_ai()
     fp = payments.free_period_days()
-    price = config.SUBSCRIPTION_PRICE_STARS
+    price = payments.premium_price()
     if payments.macros_tier_enabled():
         body = (
             "                 Free   Premium  +КБЖУ\n"
@@ -799,7 +799,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await q.edit_message_text(
                 t("premium_offer", lang, remaining=payments.remaining_text(user, today),
-                  price=config.SUBSCRIPTION_PRICE_STARS),
+                  price=payments.premium_price()),
                 parse_mode="Markdown", reply_markup=payments.paywall_keyboard(lang))
 
     elif data.startswith("favadd:"):

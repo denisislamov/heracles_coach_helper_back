@@ -4,27 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ site_name }} — {{ tr.tagline }}{% endblock %}</title>
-  <meta name="description" content="{{ tr.hero_sub }}">
+  <meta name="description" content="{{ tr.seo_desc }}">
+  <meta name="keywords" content="{{ tr.seo_keywords }}">
   <meta property="og:title" content="{{ site_name }} — {{ tr.tagline }}">
-  <meta property="og:description" content="{{ tr.hero_sub }}">
+  <meta property="og:description" content="{{ tr.seo_desc }}">
   <meta property="og:image" content="{{ url_for('static', filename='img/hero.png', _external=True) }}">
   <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="{{ url_for('static', filename='img/mascot.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <header class="site-header">
-  <a class="brand" href="{{ url_for('index') }}">
-    <img src="{{ url_for('static', filename='img/mascot.png') }}" alt="{{ site_name }}" class="brand-logo">
+  <a class="brand" href="{{ url_for('index') }}" aria-label="{{ site_name }}">
+    <img class="brand-logo" src="{{ url_for('static', filename='img/mascot.png') }}" alt="{{ site_name }}">
     <span>{{ site_name }}</span>
   </a>
   <nav>
-    <a href="{{ url_for('index') }}">{{ tr.nav_home }}</a>
-    <a href="{{ url_for('news_list') }}">{{ tr.nav_news }}</a>
     <a class="btn btn-sm" href="{{ bot_url }}" target="_blank" rel="noopener">{{ tr.cta }}</a>
     <span class="lang-switch">
       {% for l in langs %}
-        <a href="{{ url_for('set_lang', lang=l) }}" class="{{ 'on' if l == lang }}">{{ l|upper }}</a>
+        <a href="{{ url_for('set_lang', lang=l, next=request.path) }}" class="{{ 'on' if l == lang }}">{{ l|upper }}</a>
       {% endfor %}
     </span>
   </nav>
@@ -35,7 +35,7 @@
 </main>
 
 <footer class="site-footer">
-  <img src="{{ url_for('static', filename='img/mascot.png') }}" alt="" class="footer-logo">
+  <div class="footer-mark"><img src="{{ url_for('static', filename='img/mascot.png') }}" alt="{{ site_name }}"></div>
   <p>{{ tr.footer }}</p>
   <p class="footer-links">
     <a href="{{ bot_url }}" target="_blank" rel="noopener">{{ tr.cta }}</a> ·

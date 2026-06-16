@@ -21,6 +21,11 @@
       <input name="free_period_days" type="number" min="1" value="{{ cur.free_period_days }}" style="width:120px">
     </div>
 
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Цена Premium, звёзд/мес</label>
+      <input name="premium_price" type="number" min="1" value="{{ cur.premium_price }}" style="width:120px">
+    </div>
+
     <hr style="border:none;border-top:1px solid var(--line);width:100%">
     <div style="display:flex;align-items:center;gap:12px;">
       <label style="font-size:16px;">Тариф «Premium+КБЖУ» доступен</label>

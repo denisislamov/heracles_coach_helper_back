@@ -27,6 +27,7 @@ SETTING_MONETIZATION = "monetization_enabled"
 SETTING_FREE_DAILY = "free_daily_ai"
 SETTING_FREE_PERIOD = "free_period_days"
 SETTING_MACROS_TIER = "macros_tier_enabled"
+SETTING_PREMIUM_PRICE = "premium_price"
 SETTING_MACROS_PRICE = "macros_price"
 SETTING_REF_ENABLED = "referral_enabled"
 SETTING_REF_DAYS = "referral_reward_days"
@@ -48,6 +49,10 @@ def free_period_days() -> int:
 
 def macros_tier_enabled() -> bool:
     return _settings.get("macros_tier", config.MACROS_TIER_ENABLED)
+
+
+def premium_price() -> int:
+    return _settings.get("premium_price", config.SUBSCRIPTION_PRICE_STARS)
 
 
 def macros_price() -> int:
@@ -78,6 +83,7 @@ async def refresh_settings() -> None:
         fd = await db.get_setting(SETTING_FREE_DAILY)
         fp = await db.get_setting(SETTING_FREE_PERIOD)
         mt = await db.get_setting(SETTING_MACROS_TIER)
+        pp = await db.get_setting(SETTING_PREMIUM_PRICE)
         mp = await db.get_setting(SETTING_MACROS_PRICE)
         re_ = await db.get_setting(SETTING_REF_ENABLED)
         rd = await db.get_setting(SETTING_REF_DAYS)
@@ -89,6 +95,7 @@ async def refresh_settings() -> None:
     s["free_daily"] = int(fd) if (fd and fd.strip().isdigit()) else config.FREE_DAILY_AI
     s["free_period"] = int(fp) if (fp and fp.strip().isdigit()) else config.FREE_PERIOD_DAYS
     s["macros_tier"] = _truthy(mt) if mt is not None else config.MACROS_TIER_ENABLED
+    s["premium_price"] = int(pp) if (pp and pp.strip().isdigit()) else config.SUBSCRIPTION_PRICE_STARS
     s["macros_price"] = int(mp) if (mp and mp.strip().isdigit()) else config.SUBSCRIPTION_MACROS_PRICE_STARS
     s["ref_enabled"] = _truthy(re_) if re_ is not None else config.REFERRAL_ENABLED
     s["ref_days"] = int(rd) if (rd and rd.strip().isdigit()) else config.REFERRAL_REWARD_DAYS
@@ -193,7 +200,7 @@ def remaining_text(user, today: dt.date) -> str:
 
 def paywall_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(
-        t("buy_premium", lang, price=config.SUBSCRIPTION_PRICE_STARS), callback_data="buy_premium")]]
+        t("buy_premium", lang, price=premium_price()), callback_data="buy_premium")]]
     if macros_tier_enabled():
         rows.append([InlineKeyboardButton(
             t("buy_macros", lang, price=macros_price()), callback_data="buy_premium_macros")])
@@ -211,7 +218,7 @@ async def send_paywall(update: Update, reason: str = "limit") -> None:
     head = (t("pay_period", lang, n=free_period_days()) if reason == "period"
             else t("pay_limit", lang, n=free_daily_ai()))
     await msg.reply_text(
-        head + t("pay_offer", lang, price=config.SUBSCRIPTION_PRICE_STARS),
+        head + t("pay_offer", lang, price=premium_price()),
         parse_mode="Markdown", reply_markup=paywall_keyboard(lang))
 
 
@@ -225,7 +232,7 @@ async def _lang(uid):
 async def send_premium_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Нативная продлеваемая подписка Telegram Stars (Telegram сам списывает каждые 30 дней)."""
     lang = await _lang(chat_id)
-    price = config.SUBSCRIPTION_PRICE_STARS
+    price = premium_price()
     link = await context.bot.create_invoice_link(
         title="Premium",
         description="Unlimited AI food analyses by photo and text. Renews every 30 days.",
@@ -335,7 +342,7 @@ async def premium_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
     await update.message.reply_text(
         t("premium_offer", lang, remaining=remaining_text(user, today),
-          price=config.SUBSCRIPTION_PRICE_STARS),
+          price=premium_price()),
         parse_mode="Markdown", reply_markup=paywall_keyboard(lang))
 
 

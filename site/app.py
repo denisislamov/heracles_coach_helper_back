@@ -31,15 +31,32 @@ LANGS = ("ru", "en")
 # Тексты интерфейса сайта (контент новостей хранится в БД на двух языках).
 T = {
     "ru": {
-        "tagline": "твой ИИ-нутрициолог в Telegram",
+        "tagline": "ИИ-счётчик калорий и КБЖУ в Telegram",
+        "seo_desc": "Жиромер — умный счётчик калорий и КБЖУ в Telegram. Подсчёт калорий "
+                    "по фото за секунды, дневник питания, нормы по стандартам ВОЗ. "
+                    "Считай калории бесплатно целый месяц.",
+        "seo_keywords": "счётчик калорий, подсчёт калорий по фото, калькулятор калорий, "
+                        "КБЖУ, дневник питания, калории онлайн, нутрициолог ИИ, "
+                        "телеграм бот калории, похудение, правильное питание",
         "hero_sub": "Надоело искать продукты в таблицах и взвешивать каждый кусок? "
                     "Просто сфотографируй тарелку — Жиромер за пару секунд оценит "
-                    "калорийность и БЖУ, запишет в дневник и подскажет, что скорректировать.",
+                    "калорийность и КБЖУ, запишет в дневник питания и подскажет, что "
+                    "скорректировать под твою цель.",
         "cta": "Открыть в Telegram",
         "nav_features": "Возможности",
         "nav_news": "Новости",
         "nav_home": "Главная",
-        "features_title": "Что умеет",
+        "nav_price": "Цены",
+        "usp_title": "Почему Жиромер",
+        "u1_t": "Просто как сделать фото",
+        "u1_d": "Никаких таблиц и весов. Сфотографировал тарелку — калории и КБЖУ уже в дневнике.",
+        "u2_t": "Нормы по стандартам ВОЗ",
+        "u2_d": "Расчёт КБЖУ опирается на ВОЗ, DRI и спортивные ACSM/ISSN — не «средние цифры из интернета».",
+        "u3_t": "Честная точность",
+        "u3_d": "Учитываем скрытые калории — масло, соусы, сахар — и реальные порции, а не занижаем.",
+        "u4_t": "Подстраивается под тебя",
+        "u4_d": "Цель, активность и даже вид спорта: ИИ подбирает нормы белков, жиров и углеводов лично под тебя.",
+        "features_title": "Возможности",
         "f1_t": "Распознаёт еду по фото, тексту или числу",
         "f1_d": "Учитывает порции и «скрытые» калории — масло, соусы, сахар. "
                 "Можно прислать фото, описание, голосовое или штрих-код продукта.",
@@ -47,30 +64,60 @@ T = {
         "f2_d": "Сбросить, удержать или набрать. Калорийность и активность — под тебя.",
         "f3_t": "Считает белки, жиры и углеводы",
         "f3_d": "По научным нормам (ВОЗ/DRI, а для спорта — ACSM/ISSN). Укажи свой вид "
-                "спорта — ИИ подберёт нормы точнее. Тариф Premium+КБЖУ.",
+                "спорта — ИИ подберёт нормы точнее.",
         "f4_t": "Дневной и недельный отчёты",
-        "f4_d": "Видно прогресс по дням, мягкие напоминания не забыть приём пищи.",
-        "f5_t": "Исправление и записи задним числом",
+        "f4_d": "Виден прогресс по дням, мягкие напоминания не забыть приём пищи.",
+        "f5_t": "Исправления и записи задним числом",
         "f5_d": "Ошибся — поправь в один тап. Забыл вчера — добавь за прошлый день.",
-        "free_t": "Первые анализы — бесплатно",
-        "free_d": "Подключай Premium, когда захочешь без лимитов.",
+        "f6_t": "Голос, штрих-код и избранное",
+        "f6_d": "Надиктуй приём пищи, отсканируй штрих-код или добавь любимое блюдо в один тап.",
+        "price_title": "Цены",
+        "price_sub": "Оплата звёздами Telegram — без карт и сторонних подписок.",
+        "price_unit": "★/мес",
+        "plan_free_t": "Бесплатно",
+        "plan_free_p": "целый месяц",
+        "plan_free_d": "Полный доступ на 30 дней: распознавание по фото, дневник, отчёты и цель.",
+        "plan_prem_t": "Premium",
+        "plan_prem_p": "200",
+        "plan_prem_d": "Безлимитные анализы еды по фото и тексту. Без дневных ограничений.",
+        "plan_premplus_t": "Premium + КБЖУ",
+        "plan_premplus_p": "300",
+        "plan_premplus_d": "Всё из Premium плюс расчёт белков/жиров/углеводов и нормы под твой спорт.",
+        "plan_badge": "Популярный",
         "news_title": "Новости",
         "news_empty": "Пока новостей нет. Загляни позже!",
         "news_all": "Все новости →",
         "back": "← Ко всем новостям",
-        "footer": "Считай калории с умом. Сделано с ❤ для тех, кто следит за питанием.",
+        "footer": "Жиромер — считай калории с умом. Подсчёт калорий и КБЖУ по фото в Telegram.",
         "read": "Читать →",
     },
     "en": {
-        "tagline": "your AI nutritionist in Telegram",
+        "tagline": "AI calorie & macro counter in Telegram",
+        "seo_desc": "Zhiromer — a smart calorie and macro counter in Telegram. Count "
+                    "calories from a photo in seconds, keep a food diary, targets based "
+                    "on WHO standards. Track calories free for a whole month.",
+        "seo_keywords": "calorie counter, count calories from photo, calorie calculator, "
+                        "macros, food diary, calories online, AI nutritionist, "
+                        "telegram calorie bot, weight loss, healthy eating",
         "hero_sub": "Tired of looking up foods in tables and weighing every bite? "
                     "Just snap your plate — Zhiromer estimates calories and macros in "
-                    "seconds, logs them, and tells you what to adjust.",
+                    "seconds, logs them in your food diary, and tells you what to adjust "
+                    "for your goal.",
         "cta": "Open in Telegram",
         "nav_features": "Features",
         "nav_news": "News",
         "nav_home": "Home",
-        "features_title": "What it does",
+        "nav_price": "Pricing",
+        "usp_title": "Why Zhiromer",
+        "u1_t": "As simple as taking a photo",
+        "u1_d": "No tables, no scales. Snap your plate — calories and macros land in your diary.",
+        "u2_t": "Targets based on WHO standards",
+        "u2_d": "Macros are based on WHO, DRI and sports ACSM/ISSN references — not random internet averages.",
+        "u3_t": "Honest accuracy",
+        "u3_d": "We count hidden calories — oil, sauces, sugar — and real portions instead of underestimating.",
+        "u4_t": "Tailored to you",
+        "u4_d": "Goal, activity and even your sport: the AI tunes protein, fat and carb targets just for you.",
+        "features_title": "Features",
         "f1_t": "Recognizes food by photo, text or number",
         "f1_d": "Accounts for portions and hidden calories — oil, sauces, sugar. "
                 "Send a photo, a description, a voice note, or a product barcode.",
@@ -78,18 +125,31 @@ T = {
         "f2_d": "Lose, maintain or gain. Calories and activity tailored to you.",
         "f3_t": "Counts protein, fat and carbs",
         "f3_d": "Using science-based references (WHO/DRI, and ACSM/ISSN for sport). "
-                "Add your sport — the AI tunes your targets. Premium+Macros plan.",
+                "Add your sport — the AI tunes your targets.",
         "f4_t": "Daily and weekly reports",
         "f4_d": "See your progress day by day, with gentle reminders to log meals.",
         "f5_t": "Edits and back-dated entries",
         "f5_d": "Made a mistake? Fix it in one tap. Forgot yesterday? Add it for a past day.",
-        "free_t": "First analyses are free",
-        "free_d": "Go Premium whenever you want unlimited.",
+        "f6_t": "Voice, barcode and favorites",
+        "f6_d": "Dictate a meal, scan a barcode, or add a favorite dish in one tap.",
+        "price_title": "Pricing",
+        "price_sub": "Pay with Telegram Stars — no cards, no third-party subscriptions.",
+        "price_unit": "★/mo",
+        "plan_free_t": "Free",
+        "plan_free_p": "for a whole month",
+        "plan_free_d": "Full access for 30 days: photo recognition, diary, reports and goal.",
+        "plan_prem_t": "Premium",
+        "plan_prem_p": "200",
+        "plan_prem_d": "Unlimited food analyses by photo and text. No daily limits.",
+        "plan_premplus_t": "Premium + Macros",
+        "plan_premplus_p": "300",
+        "plan_premplus_d": "Everything in Premium plus protein/fat/carb targets tuned to your sport.",
+        "plan_badge": "Popular",
         "news_title": "News",
         "news_empty": "No news yet. Check back soon!",
         "news_all": "All news →",
         "back": "← Back to all news",
-        "footer": "Eat with intent. Made with ❤ for people who track their nutrition.",
+        "footer": "Zhiromer — count calories smartly. Calorie & macro tracking from a photo in Telegram.",
         "read": "Read →",
     },
 }
@@ -130,10 +190,22 @@ def render_body(text):
     return Markup(html)
 
 
+def get_prices():
+    """Цены тарифов из БД (управляются в админке), с откатом на дефолты."""
+    rows = query("SELECT key, value FROM settings WHERE key IN ('premium_price','macros_price')") or []
+    m = {r["key"]: r["value"] for r in rows}
+
+    def num(v, default):
+        return v if (v and str(v).strip().isdigit()) else default
+
+    return {"premium": num(m.get("premium_price"), "200"),
+            "macros": num(m.get("macros_price"), "300")}
+
+
 @app.context_processor
 def inject_globals():
     lang = get_lang()
-    return {"lang": lang, "tr": T[lang], "bot_url": BOT_URL,
+    return {"lang": lang, "tr": T[lang], "bot_url": BOT_URL, "prices": get_prices(),
             "site_name": SITE_NAME, "langs": LANGS, "now_year": dt.date.today().year}
 
 
@@ -178,8 +250,11 @@ def news_detail(slug):
 def set_lang(lang):
     if lang not in LANGS:
         lang = "ru"
-    resp = make_response(redirect(request.referrer or url_for("index")))
-    resp.set_cookie("lang", lang, max_age=60 * 60 * 24 * 365)
+    nxt = request.args.get("next") or request.referrer or url_for("index")
+    if not nxt.startswith("/"):   # только внутренние пути
+        nxt = url_for("index")
+    resp = make_response(redirect(nxt))
+    resp.set_cookie("lang", lang, max_age=60 * 60 * 24 * 365, samesite="Lax")
     return resp
 
 

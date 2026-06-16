@@ -8,19 +8,106 @@
     <a class="btn btn-lg" href="{{ bot_url }}" target="_blank" rel="noopener">{{ tr.cta }}</a>
   </div>
   <div class="hero-img">
-    <img src="{{ url_for('static', filename='img/mascot.png') }}" alt="{{ site_name }}">
+    <img src="{{ url_for('static', filename='img/mascot.png') }}"
+         alt="{{ site_name }} — {{ tr.tagline }}"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <div class="hero-fallback" style="display:none">
+      <svg viewBox="0 0 48 48" width="240" height="240" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="13" width="38" height="30" rx="10" fill="#5bbf6a"/>
+        <line x1="24" y1="4" x2="24" y2="13" stroke="#3f9e52" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="24" cy="3.5" r="3" fill="#3f9e52"/>
+        <rect x="11" y="19" width="26" height="15" rx="6" fill="#102017"/>
+        <circle cx="18.5" cy="26" r="2.6" fill="#5bbf6a"/>
+        <circle cx="29.5" cy="26" r="2.6" fill="#5bbf6a"/>
+        <path d="M18.5 30 q5.5 4 11 0" stroke="#5bbf6a" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="usp">
+  <h2>{{ tr.usp_title }}</h2>
+  <div class="usp-grid">
+    <div class="usp-item">
+      <span class="ic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1l1.2-1.8h6.6L15.5 6h1A2.5 2.5 0 0 1 19 8.5v8A2.5 2.5 0 0 1 16.5 19h-9A2.5 2.5 0 0 1 5 16.5z"/><circle cx="11" cy="12.5" r="3.2"/></svg>
+      </span>
+      <h3>{{ tr.u1_t }}</h3><p>{{ tr.u1_d }}</p>
+    </div>
+    <div class="usp-item">
+      <span class="ic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 2.5v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9v-5z"/><path d="M9 12l2 2 4-4"/></svg>
+      </span>
+      <h3>{{ tr.u2_t }}</h3><p>{{ tr.u2_d }}</p>
+    </div>
+    <div class="usp-item">
+      <span class="ic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></svg>
+      </span>
+      <h3>{{ tr.u3_t }}</h3><p>{{ tr.u3_d }}</p>
+    </div>
+    <div class="usp-item">
+      <span class="ic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="7" x2="19" y2="7"/><circle cx="9" cy="7" r="2.2" fill="var(--bg)"/><line x1="5" y1="17" x2="19" y2="17"/><circle cx="15" cy="17" r="2.2" fill="var(--bg)"/></svg>
+      </span>
+      <h3>{{ tr.u4_t }}</h3><p>{{ tr.u4_d }}</p>
+    </div>
   </div>
 </section>
 
 <section class="features" id="features">
   <h2>{{ tr.features_title }}</h2>
   <div class="feature-grid">
-    <div class="feature"><div class="ficon">📷</div><h3>{{ tr.f1_t }}</h3><p>{{ tr.f1_d }}</p></div>
-    <div class="feature"><div class="ficon">🎯</div><h3>{{ tr.f2_t }}</h3><p>{{ tr.f2_d }}</p></div>
-    <div class="feature"><div class="ficon">🥗</div><h3>{{ tr.f3_t }}</h3><p>{{ tr.f3_d }}</p></div>
-    <div class="feature"><div class="ficon">📊</div><h3>{{ tr.f4_t }}</h3><p>{{ tr.f4_d }}</p></div>
-    <div class="feature"><div class="ficon">✏️</div><h3>{{ tr.f5_t }}</h3><p>{{ tr.f5_d }}</p></div>
-    <div class="feature free"><div class="ficon">🎁</div><h3>{{ tr.free_t }}</h3><p>{{ tr.free_d }}</p></div>
+    <div class="feature">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1l1.2-1.8h6.6L15.5 6h1A2.5 2.5 0 0 1 19 8.5v8A2.5 2.5 0 0 1 16.5 19h-9A2.5 2.5 0 0 1 5 16.5z"/><circle cx="11" cy="12.5" r="3.2"/></svg></span>
+      <h3>{{ tr.f1_t }}</h3><p>{{ tr.f1_d }}</p>
+    </div>
+    <div class="feature">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></svg></span>
+      <h3>{{ tr.f2_t }}</h3><p>{{ tr.f2_d }}</p>
+    </div>
+    <div class="feature">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8c0-3 2-5 5-5 0 4-2 6-5 6"/><path d="M12 21c-3.3 0-6-3-6-7s2.7-6 6-6 6 2.7 6 6-2.7 7-6 7z"/></svg></span>
+      <h3>{{ tr.f3_t }}</h3><p>{{ tr.f3_d }}</p>
+    </div>
+    <div class="feature">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="19" y1="20" x2="19" y2="9"/></svg></span>
+      <h3>{{ tr.f4_t }}</h3><p>{{ tr.f4_d }}</p>
+    </div>
+    <div class="feature">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1L19 8a2 2 0 0 0-3-3L5 16z"/><line x1="14" y1="7" x2="17" y2="10"/></svg></span>
+      <h3>{{ tr.f5_t }}</h3><p>{{ tr.f5_d }}</p>
+    </div>
+    <div class="feature">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span>
+      <h3>{{ tr.f6_t }}</h3><p>{{ tr.f6_d }}</p>
+    </div>
+  </div>
+</section>
+
+<section class="pricing" id="price">
+  <h2>{{ tr.price_title }}</h2>
+  <p class="muted center">{{ tr.price_sub }}</p>
+  <div class="price-grid">
+    <div class="plan">
+      <h3>{{ tr.plan_free_t }}</h3>
+      <div class="price"><span class="price-num">0</span> <span class="price-sub">{{ tr.plan_free_p }}</span></div>
+      <p>{{ tr.plan_free_d }}</p>
+      <a class="btn" href="{{ bot_url }}" target="_blank" rel="noopener">{{ tr.cta }}</a>
+    </div>
+    <div class="plan featured">
+      <span class="plan-badge">{{ tr.plan_badge }}</span>
+      <h3>{{ tr.plan_premplus_t }}</h3>
+      <div class="price"><span class="price-num">{{ prices.macros }}</span> <span class="price-sub">{{ tr.price_unit }}</span></div>
+      <p>{{ tr.plan_premplus_d }}</p>
+      <a class="btn" href="{{ bot_url }}" target="_blank" rel="noopener">{{ tr.cta }}</a>
+    </div>
+    <div class="plan">
+      <h3>{{ tr.plan_prem_t }}</h3>
+      <div class="price"><span class="price-num">{{ prices.premium }}</span> <span class="price-sub">{{ tr.price_unit }}</span></div>
+      <p>{{ tr.plan_prem_d }}</p>
+      <a class="btn" href="{{ bot_url }}" target="_blank" rel="noopener">{{ tr.cta }}</a>
+    </div>
   </div>
 </section>
 

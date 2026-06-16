@@ -479,6 +479,7 @@ def settings():
         try:
             _set_setting("free_daily_ai", max(0, int(request.form.get("free_daily_ai", "3"))))
             _set_setting("free_period_days", max(1, int(request.form.get("free_period_days", "30"))))
+            _set_setting("premium_price", max(1, int(request.form.get("premium_price", "200"))))
             _set_setting("macros_price", max(1, int(request.form.get("macros_price", "300"))))
             _set_setting("referral_reward_days", max(1, int(request.form.get("referral_reward_days", "30"))))
             _set_setting("referral_friends_needed", max(1, int(request.form.get("referral_friends_needed", "1"))))
@@ -491,6 +492,7 @@ def settings():
         "macros_tier": _get_setting("macros_tier_enabled", "1") in ("1", "true", "yes", "on"),
         "free_daily_ai": _get_setting("free_daily_ai", "3"),
         "free_period_days": _get_setting("free_period_days", "30"),
+        "premium_price": _get_setting("premium_price", "200"),
         "macros_price": _get_setting("macros_price", "300"),
         "referral_enabled": _get_setting("referral_enabled", "1") in ("1", "true", "yes", "on"),
         "referral_reward_days": _get_setting("referral_reward_days", "30"),

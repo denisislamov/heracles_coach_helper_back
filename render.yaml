@@ -115,6 +115,6 @@ services:
 
 databases:
   - name: zhiromer-db
-    plan: free
+    plan: basic-256mb        # фактический тариф БД (free вызывал ошибку даунгрейда при синке)
     databaseName: calorie_bot
     user: calorie_bot

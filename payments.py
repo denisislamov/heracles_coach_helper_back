@@ -380,11 +380,9 @@ async def cancelsub_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             user_id=uid, telegram_payment_charge_id=user["sub_charge_id"], is_canceled=True)
         await update.message.reply_text(t("cancel_ok", lang))
     except Exception as e:
-        log.exception("cancelsub: %s", e)
-        msg = t("cancel_fail", lang)
-        if uid in config.ADMIN_IDS:
-            msg += f"\n\n`{type(e).__name__}: {e}`"
-        await update.message.reply_text(msg, parse_mode="Markdown")
+        # Бот-сайд отмена недоступна в этой связке — показываем нативный путь Telegram.
+        log.warning("cancelsub fallback to native: %s", e)
+        await update.message.reply_text(t("cancel_fail", lang))
 
 
 async def refund_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

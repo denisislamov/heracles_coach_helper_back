@@ -162,11 +162,49 @@ def _plan_label(u) -> str:
     return base
 
 
+# Окно «активности»: сколько дней без записей считаем пользователя пассивным.
+ACTIVE_WINDOW_DAYS = 7
+
+# Условия сегментов (вкладок). Активный — есть записи за последние N дней;
+# пассивный — зарегистрировался давно, но за последние N дней записей нет.
+_ACTIVE_COND = (f"EXISTS (SELECT 1 FROM entries e WHERE e.user_id = u.user_id "
+                f"AND e.created_at >= now() - interval '{ACTIVE_WINDOW_DAYS} days')")
+_PASSIVE_COND = (f"u.created_at < now() - interval '{ACTIVE_WINDOW_DAYS} days' "
+                 f"AND NOT {_ACTIVE_COND}")
+
+SEGMENT_WHERE = {
+    "active": _ACTIVE_COND,
+    "passive": _PASSIVE_COND,
+    "paying": "EXISTS (SELECT 1 FROM payments p WHERE p.user_id = u.user_id AND NOT p.is_refunded)",
+    "alpha": "u.is_alpha = TRUE",
+    "premium": "u.plan = 'premium' AND u.premium_until > now()",
+    "premium_plus": "u.plan = 'premium_plus' AND u.premium_until > now()",
+    "referred": "u.referred_by IS NOT NULL",
+    "byok": "u.openai_key_enc IS NOT NULL",
+}
+
+# Разрешённые варианты сортировки (защита от SQL-инъекций — только из белого списка).
+SORT_OPTIONS = {
+    "created_desc": ("u.created_at DESC", "Новые сначала"),
+    "created_asc": ("u.created_at ASC", "Старые сначала"),
+    "active_desc": ("last_active DESC NULLS LAST", "Активность (свежая)"),
+    "active_asc": ("last_active ASC NULLS FIRST", "Активность (давняя)"),
+    "entries_desc": ("entries_count DESC", "Больше записей"),
+    "premium_desc": ("u.premium_until DESC NULLS LAST", "Подписка дольше"),
+    "refs_desc": ("ref_count DESC", "Больше рефералов"),
+}
+
+
 @app.route("/users")
 @login_required
 def users():
     q = (request.args.get("q") or "").strip()
-    flt = request.args.get("filter", "")  # '', alpha, premium, premium_plus, referred, byok, paying
+    flt = request.args.get("filter", "")
+    sort = request.args.get("sort", "created_desc")
+    if sort not in SORT_OPTIONS:
+        sort = "created_desc"
+    order_sql = SORT_OPTIONS[sort][0]
+
     where, params = [], []
     if q:
         if q.lstrip("-").isdigit():
@@ -175,18 +213,8 @@ def users():
         else:
             where.append("u.username ILIKE %s")
             params.append(f"%{q.lstrip('@')}%")
-    if flt == "alpha":
-        where.append("u.is_alpha = TRUE")
-    elif flt == "premium":
-        where.append("u.plan = 'premium' AND u.premium_until > now()")
-    elif flt == "premium_plus":
-        where.append("u.plan = 'premium_plus' AND u.premium_until > now()")
-    elif flt == "referred":
-        where.append("u.referred_by IS NOT NULL")
-    elif flt == "byok":
-        where.append("u.openai_key_enc IS NOT NULL")
-    elif flt == "paying":
-        where.append("EXISTS (SELECT 1 FROM payments p WHERE p.user_id = u.user_id AND NOT p.is_refunded)")
+    if flt in SEGMENT_WHERE:
+        where.append(SEGMENT_WHERE[flt])
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
     PER_PAGE = 100
@@ -201,19 +229,26 @@ def users():
     rows = query(
         f"""SELECT u.*,
                    (SELECT count(*) FROM referrals r WHERE r.referrer_id = u.user_id) AS ref_count,
-                   (SELECT count(*) FROM entries e WHERE e.user_id = u.user_id) AS entries_count
+                   (SELECT count(*) FROM entries e WHERE e.user_id = u.user_id) AS entries_count,
+                   (SELECT max(e.created_at) FROM entries e WHERE e.user_id = u.user_id) AS last_active
             FROM users u {where_sql}
-            ORDER BY u.created_at DESC LIMIT {PER_PAGE} OFFSET %s""",
+            ORDER BY {order_sql} LIMIT {PER_PAGE} OFFSET %s""",
         params + [offset]) or []
+
+    def seg_count(cond):
+        return query(f"SELECT count(*) c FROM users u WHERE {cond}", one=True)["c"]
+
     summary = {
         "total": query("SELECT count(*) c FROM users", one=True)["c"],
-        "premium": query("SELECT count(*) c FROM users WHERE plan='premium' AND premium_until>now()", one=True)["c"],
-        "premium_plus": query("SELECT count(*) c FROM users WHERE plan='premium_plus' AND premium_until>now()", one=True)["c"],
-        "alpha": query("SELECT count(*) c FROM users WHERE is_alpha", one=True)["c"],
+        "active": seg_count(_ACTIVE_COND),
+        "paying": seg_count(SEGMENT_WHERE["paying"]),
+        "passive": seg_count(_PASSIVE_COND),
     }
-    return render_template("users.html", rows=rows, q=q, flt=flt, summary=summary,
+    return render_template("users.html", rows=rows, q=q, flt=flt, sort=sort,
+                           sort_options=SORT_OPTIONS, summary=summary,
                            plan_label=_plan_label, page=page, pages=pages,
-                           matched=matched, per_page=PER_PAGE)
+                           matched=matched, per_page=PER_PAGE,
+                           active_days=ACTIVE_WINDOW_DAYS)
 
 
 @app.route("/users/<int:uid>", methods=["GET", "POST"])

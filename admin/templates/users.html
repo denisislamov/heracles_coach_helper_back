@@ -5,31 +5,39 @@
 
 <div class="cards">
   <div class="card"><div class="label">Всего</div><div class="value">{{ summary.total }}</div></div>
-  <div class="card"><div class="label">Premium активных</div><div class="value">{{ summary.premium }}</div></div>
-  <div class="card"><div class="label">Premium+КБЖУ активных</div><div class="value">{{ summary.premium_plus }}</div></div>
-  <div class="card"><div class="label">Альфа-тестеров</div><div class="value">{{ summary.alpha }}</div></div>
+  <div class="card"><div class="label">Активные ({{ active_days }} дн.)</div><div class="value">{{ summary.active }}</div></div>
+  <div class="card"><div class="label">Оплатившие</div><div class="value">{{ summary.paying }}</div></div>
+  <div class="card"><div class="label">Пассивные</div><div class="value">{{ summary.passive }}</div></div>
 </div>
 
-<form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
-  <input name="q" value="{{ q }}" placeholder="Поиск: ID или @username" style="min-width:240px">
-  <select name="filter">
-    <option value="" {{ 'selected' if flt=='' }}>Все</option>
-    <option value="premium" {{ 'selected' if flt=='premium' }}>Premium активный</option>
-    <option value="premium_plus" {{ 'selected' if flt=='premium_plus' }}>Premium+КБЖУ активный</option>
-    <option value="alpha" {{ 'selected' if flt=='alpha' }}>Альфа-тестеры</option>
-    <option value="referred" {{ 'selected' if flt=='referred' }}>Пришли по реферралу</option>
-    <option value="paying" {{ 'selected' if flt=='paying' }}>Платившие</option>
-    <option value="byok" {{ 'selected' if flt=='byok' }}>Свой ключ (BYOK)</option>
+{% set tabs = [('', 'Все'), ('active', 'Активные'), ('paying', 'Оплатившие'), ('passive', 'Пассивные'),
+               ('premium', 'Premium'), ('premium_plus', 'Premium+КБЖУ'), ('alpha', 'Альфа'),
+               ('referred', 'Рефералы'), ('byok', 'BYOK')] %}
+<div class="tabs">
+  {% for key, label in tabs %}
+    <a href="{{ url_for('users', filter=key, sort=sort, q=q) }}"
+       class="tab {{ 'on' if flt == key }}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+<form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0 16px;">
+  <input type="hidden" name="filter" value="{{ flt }}">
+  <input name="q" value="{{ q }}" placeholder="Поиск: ID или @username" style="min-width:220px">
+  <label class="muted" style="margin-left:6px;">Сортировка:</label>
+  <select name="sort" onchange="this.form.submit()">
+    {% for key, opt in sort_options.items() %}
+      <option value="{{ key }}" {{ 'selected' if sort == key }}>{{ opt[1] }}</option>
+    {% endfor %}
   </select>
   <button class="primary" type="submit">Показать</button>
-  <span class="muted">Найдено: {{ matched }}{% if pages > 1 %} · стр. {{ page }} из {{ pages }}{% endif %}</span>
+  <span class="muted">Найдено: {{ matched }}{% if pages > 1 %} · стр. {{ page }}/{{ pages }}{% endif %}</span>
 </form>
 
 {% if rows %}
 <table>
   <tr>
-    <th>ID</th><th>Username</th><th>Тариф</th><th>Подписка до</th><th>Цель</th>
-    <th>Яз.</th><th>Кред.</th><th>Реф.</th><th>Записей</th><th>Регистрация</th><th></th>
+    <th>ID</th><th>Username</th><th>Тариф</th><th>Подписка до</th>
+    <th>Активность</th><th>Записей</th><th>Реф.</th><th>Регистрация</th><th></th>
   </tr>
   {% for r in rows %}
   <tr>
@@ -44,28 +52,26 @@
       {% else %}<span class="muted">Free</span>{% endif %}
     </td>
     <td class="muted">{{ r.premium_until.strftime('%d.%m.%Y') if r.premium_until else '—' }}{% if r.sub_charge_id %} 🔁{% endif %}</td>
-    <td class="muted">{{ {'lose':'похудение','maintain':'поддержание','gain':'набор'}.get(r.goal_mode, r.goal_mode) }}{% if r.goal %}, {{ r.goal }}{% endif %}</td>
-    <td class="muted">{{ r.lang }}</td>
-    <td class="muted">{{ r.credits }}</td>
-    <td class="muted">{{ r.ref_count }}</td>
+    <td class="muted">{{ r.last_active.strftime('%d.%m.%Y') if r.last_active else '—' }}</td>
     <td class="muted">{{ r.entries_count }}</td>
+    <td class="muted">{{ r.ref_count }}</td>
     <td class="muted">{{ r.created_at.strftime('%d.%m.%Y') }}</td>
     <td><a href="{{ url_for('user_detail', uid=r.user_id) }}">Открыть →</a></td>
   </tr>
   {% endfor %}
 </table>
-<p class="muted" style="margin-top:8px">🔁 — активная автопродляемая подписка · α — участник альфа-теста</p>
+<p class="muted" style="margin-top:8px">🔁 — активная автопродляемая подписка · α — альфа-тестер · «Активность» — дата последней записи еды</p>
 
 {% if pages > 1 %}
 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:16px">
   {% if page > 1 %}
-    <a href="{{ url_for('users', q=q, filter=flt, page=page-1) }}"><button>← Назад</button></a>
+    <a href="{{ url_for('users', q=q, filter=flt, sort=sort, page=page-1) }}"><button>← Назад</button></a>
   {% endif %}
   {% for p in range(1, pages + 1) %}
     {% if p == page %}
       <button class="primary" disabled>{{ p }}</button>
     {% elif p <= 3 or p > pages - 3 or (p >= page - 2 and p <= page + 2) %}
-      <a href="{{ url_for('users', q=q, filter=flt, page=p) }}"><button>{{ p }}</button></a>
+      <a href="{{ url_for('users', q=q, filter=flt, sort=sort, page=p) }}"><button>{{ p }}</button></a>
     {% elif p == 4 and page > 6 %}
       <span class="muted">…</span>
     {% elif p == pages - 3 and page < pages - 5 %}
@@ -73,11 +79,19 @@
     {% endif %}
   {% endfor %}
   {% if page < pages %}
-    <a href="{{ url_for('users', q=q, filter=flt, page=page+1) }}"><button>Вперёд →</button></a>
+    <a href="{{ url_for('users', q=q, filter=flt, sort=sort, page=page+1) }}"><button>Вперёд →</button></a>
   {% endif %}
 </div>
 {% endif %}
 {% else %}
 <p class="muted">Ничего не найдено.</p>
 {% endif %}
+
+<style>
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .tab { padding:7px 14px; border-radius:999px; border:1px solid var(--line);
+         color:var(--muted); font-size:13px; text-decoration:none; background:#161922; }
+  .tab:hover { color:var(--txt); }
+  .tab.on { background:var(--accent); color:#06210f; border-color:var(--accent); font-weight:600; }
+</style>
 {% endblock %}

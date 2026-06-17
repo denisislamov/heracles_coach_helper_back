@@ -229,48 +229,70 @@ async def _lang(uid):
     return u["lang"] if u else "ru"
 
 
+async def _invoice_error(chat_id: int, context: ContextTypes.DEFAULT_TYPE, e: Exception) -> None:
+    """Показать пользователю, что оплата не открылась; админу — текст ошибки."""
+    log.exception("Не удалось открыть оплату для %s: %s", chat_id, e)
+    lang = await _lang(chat_id)
+    msg = t("pay_open_fail", lang)
+    if chat_id in config.ADMIN_IDS:
+        msg += f"\n\n`{type(e).__name__}: {e}`"
+    try:
+        await context.bot.send_message(chat_id, msg, parse_mode="Markdown")
+    except Exception:
+        await context.bot.send_message(chat_id, t("pay_open_fail", lang))
+
+
 async def send_premium_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Нативная продлеваемая подписка Telegram Stars (Telegram сам списывает каждые 30 дней)."""
     lang = await _lang(chat_id)
     price = premium_price()
-    link = await context.bot.create_invoice_link(
-        title="Premium",
-        description="Unlimited AI food analyses by photo and text. Renews every 30 days.",
-        payload=PREMIUM_PAYLOAD, currency="XTR",
-        prices=[LabeledPrice(label="Premium / mo", amount=price)],
-        subscription_period=config.SUBSCRIPTION_PERIOD_SEC,
-    )
-    await context.bot.send_message(
-        chat_id, t("sub_msg", lang, price=price), parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t("sub_btn", lang, price=price), url=link)]]))
+    try:
+        link = await context.bot.create_invoice_link(
+            title="Premium",
+            description="Unlimited AI food analyses by photo and text. Renews every 30 days.",
+            payload=PREMIUM_PAYLOAD, currency="XTR",
+            prices=[LabeledPrice(label="Premium / mo", amount=price)],
+            subscription_period=config.SUBSCRIPTION_PERIOD_SEC,
+        )
+        await context.bot.send_message(
+            chat_id, t("sub_msg", lang, price=price), parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t("sub_btn", lang, price=price), url=link)]]))
+    except Exception as e:
+        await _invoice_error(chat_id, context, e)
 
 
 async def send_macros_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Подписка Premium+КБЖУ с автопродлением."""
     lang = await _lang(chat_id)
     price = macros_price()
-    link = await context.bot.create_invoice_link(
-        title="Premium+Macros",
-        description="Everything in Premium + protein/fat/carbs per meal and macro goals. Renews every 30 days.",
-        payload=MACROS_PAYLOAD, currency="XTR",
-        prices=[LabeledPrice(label="Premium+Macros / mo", amount=price)],
-        subscription_period=config.SUBSCRIPTION_PERIOD_SEC,
-    )
-    await context.bot.send_message(
-        chat_id, t("sub_macros_msg", lang, price=price), parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t("sub_btn", lang, price=price), url=link)]]))
+    try:
+        link = await context.bot.create_invoice_link(
+            title="Premium+Macros",
+            description="Everything in Premium + protein/fat/carbs per meal and macro goals. Renews every 30 days.",
+            payload=MACROS_PAYLOAD, currency="XTR",
+            prices=[LabeledPrice(label="Premium+Macros / mo", amount=price)],
+            subscription_period=config.SUBSCRIPTION_PERIOD_SEC,
+        )
+        await context.bot.send_message(
+            chat_id, t("sub_macros_msg", lang, price=price), parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t("sub_btn", lang, price=price), url=link)]]))
+    except Exception as e:
+        await _invoice_error(chat_id, context, e)
 
 
 async def send_pack_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE,
                             credits: int, stars: int) -> None:
     """Разовый пакет анализов (без автопродления)."""
-    await context.bot.send_invoice(
-        chat_id=chat_id,
-        title=f"{credits} analyses",
-        description=f"{credits} AI food analyses. Don't expire; used after the daily free limit.",
-        payload=f"{PACK_PREFIX}{credits}", currency="XTR",
-        prices=[LabeledPrice(label=f"{credits} analyses", amount=stars)],
-    )
+    try:
+        await context.bot.send_invoice(
+            chat_id=chat_id,
+            title=f"{credits} analyses",
+            description=f"{credits} AI food analyses. Don't expire; used after the daily free limit.",
+            payload=f"{PACK_PREFIX}{credits}", currency="XTR",
+            prices=[LabeledPrice(label=f"{credits} analyses", amount=stars)],
+        )
+    except Exception as e:
+        await _invoice_error(chat_id, context, e)
 
 
 async def on_pre_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

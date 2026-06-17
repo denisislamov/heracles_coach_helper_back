@@ -250,7 +250,7 @@ async def send_premium_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE)
         link = await context.bot.create_invoice_link(
             title="Premium",
             description="Unlimited AI food analyses by photo and text. Renews every 30 days.",
-            payload=PREMIUM_PAYLOAD, currency="XTR",
+            payload=PREMIUM_PAYLOAD, provider_token="", currency="XTR",
             prices=[LabeledPrice(label="Premium / mo", amount=price)],
             subscription_period=config.SUBSCRIPTION_PERIOD_SEC,
         )
@@ -269,7 +269,7 @@ async def send_macros_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE) 
         link = await context.bot.create_invoice_link(
             title="Premium+Macros",
             description="Everything in Premium + protein/fat/carbs per meal and macro goals. Renews every 30 days.",
-            payload=MACROS_PAYLOAD, currency="XTR",
+            payload=MACROS_PAYLOAD, provider_token="", currency="XTR",
             prices=[LabeledPrice(label="Premium+Macros / mo", amount=price)],
             subscription_period=config.SUBSCRIPTION_PERIOD_SEC,
         )
@@ -288,7 +288,7 @@ async def send_pack_invoice(chat_id: int, context: ContextTypes.DEFAULT_TYPE,
             chat_id=chat_id,
             title=f"{credits} analyses",
             description=f"{credits} AI food analyses. Don't expire; used after the daily free limit.",
-            payload=f"{PACK_PREFIX}{credits}", currency="XTR",
+            payload=f"{PACK_PREFIX}{credits}", provider_token="", currency="XTR",
             prices=[LabeledPrice(label=f"{credits} analyses", amount=stars)],
         )
     except Exception as e:

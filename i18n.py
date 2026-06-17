@@ -180,7 +180,10 @@ _STR = {
         "pack_added": "✅ Спасибо! Начислено *{n}* анализов. Тратятся после дневного лимита.",
         "cancel_none": "Активной автоподписки нет.",
         "cancel_ok": "✅ Автопродление отменено. Premium действует до конца оплаченного периода.",
-        "cancel_fail": "Не получилось отменить через бота. Открой Telegram → Настройки → Подписки.",
+        "cancel_fail": ("Отменить автопродление можно прямо в Telegram за пару тапов:\n"
+                        "• открой сообщение-чек об оплате ⭐ и нажми «Отменить подписку»,\n"
+                        "• или Настройки → Telegram Star → Мои подписки.\n\n"
+                        "Premium останется активным до конца уже оплаченного периода."),
         "promo_premium_days": "🎉 Промокод активирован: +{n} дней Premium!",
         "promo_premium_plus_days": "🎉 Промокод активирован: +{n} дней Premium+КБЖУ!",
         "promo_credits": "🎉 Промокод активирован: +{n} анализов!",
@@ -416,7 +419,10 @@ _STR = {
         "pack_added": "✅ Thanks! Added *{n}* analyses. Used after the daily limit.",
         "cancel_none": "No active auto-subscription.",
         "cancel_ok": "✅ Auto-renew canceled. Premium stays until the end of the paid period.",
-        "cancel_fail": "Couldn't cancel via the bot. Open Telegram → Settings → Subscriptions.",
+        "cancel_fail": ("You can cancel auto-renewal right inside Telegram in a couple of taps:\n"
+                        "• open the ⭐ payment receipt message and tap “Cancel subscription”,\n"
+                        "• or Settings → Telegram Star → My Subscriptions.\n\n"
+                        "Premium stays active until the end of the period you already paid for."),
         "promo_premium_days": "🎉 Promo activated: +{n} days of Premium!",
         "promo_premium_plus_days": "🎉 Promo activated: +{n} days of Premium+Macros!",
         "promo_credits": "🎉 Promo activated: +{n} analyses!",

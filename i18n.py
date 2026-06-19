@@ -119,9 +119,9 @@ _STR = {
         "diet_redo": "🔄 Подобрать заново",
         "diet_disclaimer": "_Это не медицинская рекомендация. При заболеваниях обратись к специалисту._",
         "btn_fasting": "⏳ Голодание",
-        "fast_locked": ("⏳ *Трекер интервального голодания* — функция Premium.\n\nВыбирай протокол "
-                        "(16:8 и др.), следи за таймером и стадиями, получай уведомление о цели. "
-                        "Оформи Premium, чтобы открыть."),
+        "fast_locked": ("⏳ *Трекер интервального голодания* — в тарифе *Premium+КБЖУ*.\n\nВыбирай "
+                        "протокол (16:8 и др.), следи за таймером и стадиями, получай уведомление о "
+                        "цели. Оформи Premium+КБЖУ, чтобы открыть."),
         "fast_choose": ("Выбери протокол голодания (часы голодания : часы окна еды):\n\n"
                         "_Голодание подходит не всем. При диабете, беременности, РПП и в возрасте "
                         "до 18 — не начинай без консультации врача._"),
@@ -436,9 +436,9 @@ _STR = {
         "diet_redo": "🔄 Match again",
         "diet_disclaimer": "_This is not medical advice. If you have health conditions, consult a professional._",
         "btn_fasting": "⏳ Fasting",
-        "fast_locked": ("⏳ *Intermittent fasting tracker* is a Premium feature.\n\nPick a protocol "
-                        "(16:8, etc.), follow the timer and stages, get notified when you reach your "
-                        "goal. Go Premium to unlock."),
+        "fast_locked": ("⏳ *Intermittent fasting tracker* is in the *Premium+Macros* plan.\n\nPick a "
+                        "protocol (16:8, etc.), follow the timer and stages, get notified when you "
+                        "reach your goal. Get Premium+Macros to unlock."),
         "fast_choose": ("Pick a fasting protocol (fasting hours : eating window hours):\n\n"
                         "_Fasting isn't for everyone. With diabetes, pregnancy, eating disorders or "
                         "if under 18 — don't start without medical advice._"),

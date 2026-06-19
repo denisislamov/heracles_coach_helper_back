@@ -1055,7 +1055,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                    reply_markup=kb.meal_skip_restrict_kb(lang))
 
     elif data == "fasting":
-        if not payments.meal_plan_enabled(user):
+        if not payments.macros_enabled(user):
             await q.edit_message_text(t("fast_locked", lang), parse_mode="Markdown",
                                       reply_markup=payments.paywall_keyboard(lang))
         else:

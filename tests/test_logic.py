@@ -65,6 +65,19 @@ def test_macros_gating():
                                          premium_until=now + dt.timedelta(days=3))) is False
 
 
+def test_fasting_helpers():
+    import fasting
+    assert fasting.proto_label(16) == "16:8"
+    assert fasting.proto_label(20) == "20:4"
+    # прогресс-бар отражает долю
+    assert fasting._bar(0.0).startswith("░") or fasting._bar(0.0) == "░" * 10
+    assert "▓" in fasting._bar(0.5)
+    # стадия меняется со временем: ранний этап != поздний
+    early = fasting.stage_text(1, "ru")
+    late = fasting.stage_text(20, "ru")
+    assert early != late
+
+
 def test_meal_plan_gating():
     now = dt.datetime.now(dt.timezone.utc)
     # монетизация включена: планы — любой активный Premium (premium или premium_plus)

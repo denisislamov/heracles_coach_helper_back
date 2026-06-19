@@ -177,6 +177,17 @@ CREATE TABLE IF NOT EXISTS news (
 );
 CREATE INDEX IF NOT EXISTS idx_news_pub ON news(published, published_at DESC);
 
+-- Интервальное голодание (Premium): активный пост (end_at IS NULL) и история.
+CREATE TABLE IF NOT EXISTS fasts (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT NOT NULL,
+    start_at     TIMESTAMPTZ NOT NULL,
+    target_hours INTEGER NOT NULL,
+    end_at       TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_fasts_user ON fasts(user_id, start_at DESC);
+
 -- Недельный план питания (Premium). Один активный план на пользователя, JSON в тексте.
 CREATE TABLE IF NOT EXISTS meal_plans (
     user_id    BIGINT PRIMARY KEY,
@@ -548,6 +559,53 @@ async def get_meal_plan(user_id: int):
     """Вернуть запись плана (data — JSON-текст) или None."""
     async with _pool.acquire() as conn:
         return await conn.fetchrow("SELECT * FROM meal_plans WHERE user_id=$1", user_id)
+
+
+async def get_active_fast(user_id: int):
+    async with _pool.acquire() as conn:
+        return await conn.fetchrow(
+            "SELECT * FROM fasts WHERE user_id=$1 AND end_at IS NULL ORDER BY start_at DESC LIMIT 1",
+            user_id)
+
+
+async def start_fast(user_id: int, target_hours: int, start_at=None) -> int:
+    """Начать пост. Если есть активный — закрываем его. Возвращает id нового."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE fasts SET end_at=now() WHERE user_id=$1 AND end_at IS NULL", user_id)
+        return await conn.fetchval(
+            "INSERT INTO fasts (user_id, start_at, target_hours) VALUES ($1, COALESCE($2, now()), $3) RETURNING id",
+            user_id, start_at, target_hours)
+
+
+async def stop_fast(user_id: int):
+    """Завершить активный пост, вернуть его запись (или None)."""
+    async with _pool.acquire() as conn:
+        return await conn.fetchrow(
+            "UPDATE fasts SET end_at=now() WHERE user_id=$1 AND end_at IS NULL "
+            "RETURNING *", user_id)
+
+
+async def fast_history(user_id: int, limit: int = 10) -> list:
+    async with _pool.acquire() as conn:
+        return await conn.fetch(
+            "SELECT * FROM fasts WHERE user_id=$1 AND end_at IS NOT NULL "
+            "ORDER BY start_at DESC LIMIT $2", user_id, limit)
+
+
+async def fast_stats(user_id: int) -> dict:
+    """Кол-во завершённых постов и самый длинный (в часах)."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT count(*) cnt,
+                      COALESCE(MAX(EXTRACT(EPOCH FROM (end_at - start_at))/3600.0), 0) longest
+               FROM fasts WHERE user_id=$1 AND end_at IS NOT NULL""", user_id)
+        return {"count": int(row["cnt"]), "longest": float(row["longest"])}
+
+
+async def all_active_fasts() -> list:
+    async with _pool.acquire() as conn:
+        return await conn.fetch("SELECT * FROM fasts WHERE end_at IS NULL")
 
 
 async def save_diet(user_id: int, pattern: str, text: str) -> None:

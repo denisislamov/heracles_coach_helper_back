@@ -118,6 +118,36 @@ _STR = {
         "diet_to_plan": "🍽 Составить план по этой диете",
         "diet_redo": "🔄 Подобрать заново",
         "diet_disclaimer": "_Это не медицинская рекомендация. При заболеваниях обратись к специалисту._",
+        "btn_fasting": "⏳ Голодание",
+        "fast_locked": ("⏳ *Трекер интервального голодания* — функция Premium.\n\nВыбирай протокол "
+                        "(16:8 и др.), следи за таймером и стадиями, получай уведомление о цели. "
+                        "Оформи Premium, чтобы открыть."),
+        "fast_choose": ("Выбери протокол голодания (часы голодания : часы окна еды):\n\n"
+                        "_Голодание подходит не всем. При диабете, беременности, РПП и в возрасте "
+                        "до 18 — не начинай без консультации врача._"),
+        "fast_started": "▶️ Старт! Протокол {proto}. Я напомню, когда цель будет достигнута.",
+        "fast_status": ("⏳ *Голодание {proto}*\n\nПрошло: *{elapsed}* из {target}ч\n{bar} {pct}%\n"
+                        "{rem}\n\n🔬 Сейчас: {stage}\n\n_Ориентиры по стадиям индивидуальны и не "
+                        "являются медицинской рекомендацией._"),
+        "fast_remaining": "Осталось: {time}",
+        "fast_goal_done": "🎉 Цель достигнута! Можно завершать.",
+        "fast_goal_reached": "🎉 *Цель {proto} достигнута!* Отличная работа. Можно открывать окно еды.",
+        "fast_stopped": "⏹ Пост завершён. Длительность: *{dur}*. {note}",
+        "fast_reached_yes": "Цель выполнена ✅",
+        "fast_reached_no": "До цели не дотянул — ничего страшного, в следующий раз получится.",
+        "fast_history_title": "📜 *Последние посты:*",
+        "fast_history_line": "{date} — {dur}",
+        "fast_history_empty": "Завершённых постов пока нет.",
+        "fast_stats": "Всего постов: {count} · самый длинный: {longest}ч",
+        "fast_stop_btn": "⏹ Завершить",
+        "fast_refresh_btn": "🔄 Обновить",
+        "fast_history_btn": "📜 История",
+        "fast_stage_eat": "питание и усвоение пищи",
+        "fast_stage_sugar": "уровень сахара в крови постепенно снижается",
+        "fast_stage_glycogen": "запасы гликогена истощаются (ориентировочно)",
+        "fast_stage_fat": "тело активнее использует жир как топливо (ориентировочно)",
+        "fast_stage_ketosis": "возможен рост уровня кетонов (ориентировочно)",
+        "fast_stage_autophagy": "предположительно усиливается аутофагия (у разных людей по-разному)",
         "goal_set": "🎯 Цель установлена: *{goal}* ккал/день.",
         "goal_calc": "📊 Рассчитал под твою цель: *{cal} ккал/день* · Б {p} · Ж {f} · У {c} г.\nПодходит или изменить?",
         "goal_ok": "✅ Подходит",
@@ -405,6 +435,36 @@ _STR = {
         "diet_to_plan": "🍽 Build a meal plan for this diet",
         "diet_redo": "🔄 Match again",
         "diet_disclaimer": "_This is not medical advice. If you have health conditions, consult a professional._",
+        "btn_fasting": "⏳ Fasting",
+        "fast_locked": ("⏳ *Intermittent fasting tracker* is a Premium feature.\n\nPick a protocol "
+                        "(16:8, etc.), follow the timer and stages, get notified when you reach your "
+                        "goal. Go Premium to unlock."),
+        "fast_choose": ("Pick a fasting protocol (fasting hours : eating window hours):\n\n"
+                        "_Fasting isn't for everyone. With diabetes, pregnancy, eating disorders or "
+                        "if under 18 — don't start without medical advice._"),
+        "fast_started": "▶️ Started! Protocol {proto}. I'll remind you when you reach the goal.",
+        "fast_status": ("⏳ *Fasting {proto}*\n\nElapsed: *{elapsed}* of {target}h\n{bar} {pct}%\n"
+                        "{rem}\n\n🔬 Now: {stage}\n\n_Stage markers vary by person and are not "
+                        "medical advice._"),
+        "fast_remaining": "Remaining: {time}",
+        "fast_goal_done": "🎉 Goal reached! You can stop now.",
+        "fast_goal_reached": "🎉 *{proto} goal reached!* Great job. You can open your eating window.",
+        "fast_stopped": "⏹ Fast finished. Duration: *{dur}*. {note}",
+        "fast_reached_yes": "Goal met ✅",
+        "fast_reached_no": "Didn't quite reach the goal — no worries, you'll get it next time.",
+        "fast_history_title": "📜 *Recent fasts:*",
+        "fast_history_line": "{date} — {dur}",
+        "fast_history_empty": "No finished fasts yet.",
+        "fast_stats": "Total fasts: {count} · longest: {longest}h",
+        "fast_stop_btn": "⏹ Finish",
+        "fast_refresh_btn": "🔄 Refresh",
+        "fast_history_btn": "📜 History",
+        "fast_stage_eat": "eating and digestion",
+        "fast_stage_sugar": "blood sugar gradually declining",
+        "fast_stage_glycogen": "glycogen stores depleting (approx.)",
+        "fast_stage_fat": "body uses more fat for fuel (approx.)",
+        "fast_stage_ketosis": "ketone levels may rise (approx.)",
+        "fast_stage_autophagy": "autophagy may increase (varies by person)",
         "goal_set": "🎯 Goal set: *{goal}* kcal/day.",
         "goal_calc": "📊 Based on your goal: *{cal} kcal/day* · P {p} · F {f} · C {c} g.\nLooks good or change it?",
         "goal_ok": "✅ Looks good",

@@ -43,7 +43,8 @@ def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
          InlineKeyboardButton(t("btn_favorites", lang), callback_data="favs")],
         [InlineKeyboardButton(t("btn_barcode", lang), callback_data="barcode"),
          InlineKeyboardButton(t("btn_mealplan", lang), callback_data="mealplan")],
-        [InlineKeyboardButton(t("btn_diet", lang), callback_data="diet")],
+        [InlineKeyboardButton(t("btn_diet", lang), callback_data="diet"),
+         InlineKeyboardButton(t("btn_fasting", lang), callback_data="fasting")],
         [InlineKeyboardButton(t("btn_set_goal", lang), callback_data="set_goal")],
         [InlineKeyboardButton(t("btn_mode", lang), callback_data="set_mode"),
          InlineKeyboardButton(t("btn_profile", lang), callback_data="set_profile")],
@@ -55,6 +56,25 @@ def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton(t("btn_settings", lang), callback_data="settings"),
                  InlineKeyboardButton(t("btn_feedback", lang), callback_data="feedback")])
     return InlineKeyboardMarkup(rows)
+
+
+import fasting as _fasting
+
+
+def fasting_choose_kb(lang: str = "ru") -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(_fasting.proto_label(h), callback_data=f"fast_start:{h}")]
+            for h in _fasting.PROTOCOLS]
+    rows.append([InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")])
+    return InlineKeyboardMarkup(rows)
+
+
+def fasting_active_kb(lang: str = "ru") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("fast_stop_btn", lang), callback_data="fast_stop"),
+         InlineKeyboardButton(t("fast_refresh_btn", lang), callback_data="fast_status")],
+        [InlineKeyboardButton(t("fast_history_btn", lang), callback_data="fast_history")],
+        [InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")],
+    ])
 
 
 DIET_FOCUS = ["lose", "heart", "muscle", "balanced"]

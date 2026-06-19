@@ -8,6 +8,7 @@ from telegram.ext import (Application, CommandHandler, MessageHandler,
 
 import config
 import db
+import fasting
 import handlers
 import payments
 import reminders

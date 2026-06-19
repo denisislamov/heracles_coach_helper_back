@@ -14,6 +14,7 @@ import ai
 import barcode as barcode_mod
 import config
 import db
+import fasting
 import feedback
 import foodfacts
 import i18n
@@ -661,6 +662,27 @@ async def _generate_mealplan(update, context):
     await _render_mealplan_day(update, context, 0, edit=False)
 
 
+# --------------------------------------------------------- интервальное голодание (Premium)
+
+async def _show_fasting(update, context, edit: bool = True):
+    """Активный пост → статус с кнопками; иначе — выбор протокола."""
+    uid = update.effective_user.id
+    user = await db.get_user(uid)
+    lang = user["lang"]
+    fast = await db.get_active_fast(uid)
+    if fast:
+        text, kbd = fasting.status_text(fast, lang), kb.fasting_active_kb(lang)
+    else:
+        text, kbd = t("fast_choose", lang), kb.fasting_choose_kb(lang)
+    if edit and update.callback_query:
+        try:
+            await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=kbd)
+            return
+        except BadRequest:
+            pass
+    await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=kbd)
+
+
 # --------------------------------------------------------- подбор диеты (Premium)
 
 async def _show_diet(update, context, edit: bool = True):
@@ -1031,6 +1053,47 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["awaiting"] = "mp_restrict"
         await q.message.reply_text(t("mp_ask_restrict", lang),
                                    reply_markup=kb.meal_skip_restrict_kb(lang))
+
+    elif data == "fasting":
+        if not payments.meal_plan_enabled(user):
+            await q.edit_message_text(t("fast_locked", lang), parse_mode="Markdown",
+                                      reply_markup=payments.paywall_keyboard(lang))
+        else:
+            await _show_fasting(update, context)
+    elif data == "fast_status":
+        await _show_fasting(update, context)
+    elif data.startswith("fast_start:"):
+        hours = int(data.split(":")[1])
+        fid = await db.start_fast(uid, hours)
+        fasting.schedule_goal(context.job_queue, uid, fid, hours * 3600)
+        await q.edit_message_text(t("fast_started", lang, proto=fasting.proto_label(hours)))
+        await _show_fasting(update, context, edit=False)
+    elif data == "fast_stop":
+        fast = await db.stop_fast(uid)
+        if fast:
+            dur = fast["end_at"] - fast["start_at"]
+            reached = dur >= dt.timedelta(hours=fast["target_hours"])
+            note = t("fast_reached_yes", lang) if reached else t("fast_reached_no", lang)
+            await q.edit_message_text(
+                t("fast_stopped", lang, dur=fasting._fmt_hm(dur), note=note), parse_mode="Markdown")
+        else:
+            await _show_fasting(update, context)
+    elif data == "fast_history":
+        rows = await db.fast_history(uid, 10)
+        st = await db.fast_stats(uid)
+        if not rows:
+            await q.edit_message_text(t("fast_history_empty", lang),
+                                      reply_markup=kb.fasting_active_kb(lang) if await db.get_active_fast(uid) else kb.back_to_menu(lang))
+        else:
+            lines = [t("fast_history_title", lang)]
+            for r in rows:
+                d = r["end_at"] - r["start_at"]
+                lines.append("• " + t("fast_history_line", lang,
+                             date=r["start_at"].strftime("%d.%m"), dur=fasting._fmt_hm(d)))
+            lines.append("")
+            lines.append(t("fast_stats", lang, count=st["count"], longest=round(st["longest"], 1)))
+            await q.edit_message_text("\n".join(lines), parse_mode="Markdown",
+                                      reply_markup=kb.back_to_menu(lang))
 
     elif data == "invite":
         if payments.referral_enabled():

@@ -200,6 +200,52 @@ _MEAL_PLAN_DAYS_RU = ["Понедельник", "Вторник", "Среда", 
 _MEAL_PLAN_DAYS_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
+_DIET_PATTERNS = ("balanced", "mediterranean", "high_protein", "low_carb", "vegetarian", "dash")
+
+_DIET_SYSTEM = (
+    "Ты — нутрициолог. По профилю и приоритету человека рекомендуешь ОДИН научно "
+    "обоснованный паттерн питания из списка: balanced, mediterranean, high_protein, "
+    "low_carb, vegetarian, dash. Опирайся на доказательную базу: средиземноморский и "
+    "DASH — для сердца/сосудов и общего здоровья; высокобелковый дефицит — для снижения "
+    "веса с сохранением мышц и набора массы; и т.д. Без экстремальных диет и обещаний "
+    "«минус 10 кг за неделю». Дай короткое обоснование и 3–4 практичных совета по "
+    "поддержанию. Это не медицинская рекомендация; при заболеваниях советуй врача."
+)
+
+
+async def recommend_diet(goal_mode: str, activity: str, sport: str, focus: str,
+                         restrictions: str, lang: str = "ru") -> Optional[dict]:
+    """Подобрать паттерн питания. Возвращает {"pattern": <key>, "text": <markdown>} или None."""
+    goal_map = {"lose": "снижение веса", "maintain": "поддержание", "gain": "набор массы"}
+    prompt = (
+        f"Цель: {goal_map.get(goal_mode, goal_mode)}. Приоритет пользователя: {focus}. "
+        f"Активность: {activity or 'не указана'}. Спорт: {sport or 'нет'}. "
+        f"Ограничения/предпочтения: {restrictions or 'нет'}. "
+        f"Язык ответа: {_LANG_NAME.get(lang, 'русском')}. "
+        "Верни ТОЛЬКО валидный JSON по схеме: "
+        '{"pattern": <один из: balanced|mediterranean|high_protein|low_carb|vegetarian|dash>, '
+        '"text": <markdown: 1) название диеты, 2) почему она тебе подходит (1-2 предложения), '
+        '3) 3-4 совета по поддержанию списком>}'
+    )
+    try:
+        resp = await _client.chat.completions.create(
+            model=config.OPENAI_MODEL,
+            messages=[{"role": "system", "content": _DIET_SYSTEM},
+                      {"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            max_tokens=600,
+            temperature=0.4,
+        )
+        data = json.loads(resp.choices[0].message.content)
+        pattern = data.get("pattern") if data.get("pattern") in _DIET_PATTERNS else "balanced"
+        text = (data.get("text") or "").strip()
+        if not text:
+            return None
+        return {"pattern": pattern, "text": text}
+    except Exception:
+        return None
+
+
 async def generate_meal_plan(cal: int, protein: int, fat: int, carb: int,
                              pattern: str, restrictions: str, goal_mode: str = "lose",
                              lang: str = "ru") -> Optional[dict]:

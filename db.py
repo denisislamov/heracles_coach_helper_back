@@ -127,6 +127,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by  BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS lang         TEXT NOT NULL DEFAULT 'ru';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_alpha     BOOLEAN NOT NULL DEFAULT FALSE;  -- участник альфа-теста
 ALTER TABLE users ADD COLUMN IF NOT EXISTS sport        TEXT;  -- вид спорта (ручной ввод) для подбора норм КБЖУ
+ALTER TABLE users ADD COLUMN IF NOT EXISTS diet_pattern TEXT;  -- рекомендованный паттерн питания (mediterranean и т.п.)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS diet_text    TEXT;  -- текст рекомендации диеты (готовый к показу)
 
 -- Рефералы: кто кого привёл (один реферал на нового пользователя).
 CREATE TABLE IF NOT EXISTS referrals (
@@ -546,6 +548,14 @@ async def get_meal_plan(user_id: int):
     """Вернуть запись плана (data — JSON-текст) или None."""
     async with _pool.acquire() as conn:
         return await conn.fetchrow("SELECT * FROM meal_plans WHERE user_id=$1", user_id)
+
+
+async def save_diet(user_id: int, pattern: str, text: str) -> None:
+    """Сохранить рекомендованную диету (паттерн + текст рекомендации)."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET diet_pattern=$2, diet_text=$3 WHERE user_id=$1",
+            user_id, pattern, text)
 
 
 async def set_profile(user_id: int, sex, age, height_cm, weight_kg, activity, sport=None) -> None:

@@ -43,6 +43,7 @@ def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
          InlineKeyboardButton(t("btn_favorites", lang), callback_data="favs")],
         [InlineKeyboardButton(t("btn_barcode", lang), callback_data="barcode"),
          InlineKeyboardButton(t("btn_mealplan", lang), callback_data="mealplan")],
+        [InlineKeyboardButton(t("btn_diet", lang), callback_data="diet")],
         [InlineKeyboardButton(t("btn_set_goal", lang), callback_data="set_goal")],
         [InlineKeyboardButton(t("btn_mode", lang), callback_data="set_mode"),
          InlineKeyboardButton(t("btn_profile", lang), callback_data="set_profile")],
@@ -54,6 +55,28 @@ def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton(t("btn_settings", lang), callback_data="settings"),
                  InlineKeyboardButton(t("btn_feedback", lang), callback_data="feedback")])
     return InlineKeyboardMarkup(rows)
+
+
+DIET_FOCUS = ["lose", "heart", "muscle", "balanced"]
+
+
+def diet_focus_menu(lang: str = "ru") -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(t(f"dq_focus_{x}", lang), callback_data=f"dq_focus:{x}")]
+            for x in DIET_FOCUS]
+    rows.append([InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")])
+    return InlineKeyboardMarkup(rows)
+
+
+def diet_skip_kb(lang: str = "ru") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton(t("mp_skip", lang), callback_data="dq_gen")]])
+
+
+def diet_result_kb(lang: str = "ru") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("diet_to_plan", lang), callback_data="diet_to_plan")],
+        [InlineKeyboardButton(t("diet_redo", lang), callback_data="diet_redo")],
+        [InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")],
+    ])
 
 
 MEAL_PATTERNS = ["balanced", "mediterranean", "high_protein", "low_carb", "vegetarian"]

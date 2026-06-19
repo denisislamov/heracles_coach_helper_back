@@ -1,5 +1,6 @@
 """Хендлеры Telegram: онбординг, приём еды (фото/текст/число), меню, настройки."""
 import datetime as dt
+import json
 import logging
 import re
 
@@ -500,6 +501,11 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _handle_profile_input(update, context, text)
         return
 
+    if awaiting == "mp_restrict":
+        context.user_data["mp_restrict"] = text[:200]
+        await _generate_mealplan(update, context)
+        return
+
     if awaiting == "barcode_photo":  # пользователь прислал цифры штрих-кода текстом
         digits = re.sub(r"\D", "", text)
         if len(digits) >= 8:
@@ -577,6 +583,77 @@ async def _barcode_finish(update, context, grams: int):
            "carb_g": round(p["carb_100g"] * k)}
     item = f"{p['name']} ({grams} г)"
     await _log_and_reply(update, context, cal, item, res)
+
+
+# --------------------------------------------------------- планы питания (Premium)
+
+def _i(v):
+    try:
+        return int(round(float(v or 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
+async def _render_mealplan_day(update, context, day_idx: int, edit: bool = True):
+    """Показать день недельного плана: заголовок с итогами + приёмы с рецептами."""
+    uid = update.effective_user.id
+    user = await db.get_user(uid)
+    lang = user["lang"]
+    row = await db.get_meal_plan(uid)
+    if not row:
+        await update.effective_message.reply_text(t("mp_fail", lang))
+        return
+    plan = json.loads(row["data"])
+    days = plan.get("days", [])
+    if not days:
+        await update.effective_message.reply_text(t("mp_fail", lang))
+        return
+    day_idx = max(0, min(day_idx, len(days) - 1))
+    context.user_data["mp_day"] = day_idx
+    day = days[day_idx]
+    meals = day.get("meals", [])
+    tot_k = sum(_i(m.get("kcal")) for m in meals)
+    tot_p = sum(_i(m.get("protein_g")) for m in meals)
+    tot_f = sum(_i(m.get("fat_g")) for m in meals)
+    tot_c = sum(_i(m.get("carb_g")) for m in meals)
+    lines = [t("mp_day_header", lang, day=day.get("day", f"#{day_idx+1}"),
+               kcal=tot_k, p=tot_p, f=tot_f, c=tot_c), ""]
+    for m in meals:
+        lines.append(t("mp_meal_line", lang, title=m.get("title", "—"), grams=_i(m.get("grams")),
+                       kcal=_i(m.get("kcal")), p=_i(m.get("protein_g")), f=_i(m.get("fat_g")),
+                       c=_i(m.get("carb_g")), recipe=(m.get("recipe") or "").strip()))
+    lines.append("")
+    lines.append(t("mp_disclaimer", lang))
+    text = "\n\n".join(lines)
+    kbd = kb.mealplan_day_kb(plan, day_idx, lang)
+    try:
+        if edit:
+            await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=kbd)
+        else:
+            await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=kbd)
+    except BadRequest:
+        await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=kbd)
+
+
+async def _generate_mealplan(update, context):
+    """Сгенерировать недельный план по профилю/целям и показать первый день."""
+    uid = update.effective_user.id
+    user = await db.get_user(uid)
+    lang = user["lang"]
+    pattern = context.user_data.get("mp_pattern", "balanced")
+    restrict = context.user_data.pop("mp_restrict", "")
+    context.user_data.pop("awaiting", None)
+    await update.effective_message.reply_text(t("mp_generating", lang))
+    await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
+    cal = user["goal"] or nutrition.default_goal(user["goal_mode"] or "lose")
+    p, f, c = nutrition.goals_for_user(user)
+    plan = await ai.generate_meal_plan(cal, p, f, c, pattern, restrict,
+                                       goal_mode=user["goal_mode"] or "lose", lang=lang)
+    if not plan:
+        await update.effective_message.reply_text(t("mp_fail", lang))
+        return
+    await db.save_meal_plan(uid, json.dumps(plan, ensure_ascii=False), pattern)
+    await _render_mealplan_day(update, context, 0, edit=False)
 
 
 async def on_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -838,6 +915,55 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "barcode":
         context.user_data["awaiting"] = "barcode_photo"
         await q.edit_message_text(t("bc_ask_photo", lang))
+
+    elif data == "mealplan":
+        if not payments.meal_plan_enabled(user):
+            await q.edit_message_text(t("mp_locked", lang), parse_mode="Markdown",
+                                      reply_markup=payments.paywall_keyboard(lang))
+        elif await db.get_meal_plan(uid):
+            await _render_mealplan_day(update, context, context.user_data.get("mp_day", 0))
+        else:
+            await q.edit_message_text(t("mp_choose_pattern", lang),
+                                      reply_markup=kb.meal_pattern_menu(lang))
+    elif data.startswith("mp_pat:"):
+        context.user_data["mp_pattern"] = data.split(":")[1]
+        context.user_data["awaiting"] = "mp_restrict"
+        await q.edit_message_text(t("mp_ask_restrict", lang),
+                                  reply_markup=kb.meal_skip_restrict_kb(lang))
+    elif data == "mp_gen":
+        await _generate_mealplan(update, context)
+    elif data == "mp_regen":
+        await q.edit_message_text(t("mp_choose_pattern", lang),
+                                  reply_markup=kb.meal_pattern_menu(lang))
+    elif data.startswith("mp_day:"):
+        await _render_mealplan_day(update, context, int(data.split(":")[1]))
+    elif data == "mp_noop":
+        pass
+    elif data == "mp_shop":
+        row = await db.get_meal_plan(uid)
+        if row:
+            plan = json.loads(row["data"])
+            items = plan.get("shopping", []) or []
+            txt = t("mp_shopping_title", lang) + "\n" + "\n".join(f"• {x}" for x in items)
+            await q.message.reply_text(txt, parse_mode="Markdown")
+    elif data.startswith("mp_eat:"):
+        _, d, i = data.split(":")
+        row = await db.get_meal_plan(uid)
+        if row:
+            plan = json.loads(row["data"])
+            try:
+                m = plan["days"][int(d)]["meals"][int(i)]
+            except (KeyError, IndexError, ValueError):
+                m = None
+            if m:
+                show_macros = payments.macros_enabled(user)
+                await db.add_entry(
+                    uid, _i(m.get("kcal")), m.get("title", "—"), _today(user),
+                    _i(m.get("protein_g")) if show_macros else None,
+                    _i(m.get("fat_g")) if show_macros else None,
+                    _i(m.get("carb_g")) if show_macros else None)
+                await q.message.reply_text(
+                    t("mp_eaten", lang, title=m.get("title", "—"), kcal=_i(m.get("kcal"))))
 
     elif data == "invite":
         if payments.referral_enabled():

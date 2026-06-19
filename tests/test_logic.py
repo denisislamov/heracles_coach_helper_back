@@ -65,6 +65,19 @@ def test_macros_gating():
                                          premium_until=now + dt.timedelta(days=3))) is False
 
 
+def test_meal_plan_gating():
+    now = dt.datetime.now(dt.timezone.utc)
+    # монетизация включена: планы — любой активный Premium (premium или premium_plus)
+    assert payments.meal_plan_enabled(_user(plan="free")) is False
+    assert payments.meal_plan_enabled(
+        _user(plan="premium", premium_until=now + dt.timedelta(days=3))) is True
+    assert payments.meal_plan_enabled(
+        _user(plan="premium_plus", premium_until=now + dt.timedelta(days=3))) is True
+    # монетизация выключена: планы доступны всем
+    payments._settings["mon"] = False
+    assert payments.meal_plan_enabled(_user(plan="free")) is True
+
+
 def test_ai_params_model_selection():
     import config
     assert payments.ai_params(_user(), "free")[0] == config.OPENAI_MODEL_FREE

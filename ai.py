@@ -186,6 +186,59 @@ async def suggest_macro_profile(sex, age, height_cm, weight_kg, activity, goal_m
         return None
 
 
+_MEAL_PLAN_SYSTEM = (
+    "Ты — нутрициолог. Составляешь недельный план питания (7 дней) под дневные цели "
+    "по калориям и КБЖУ. Принципы: сбалансированно и устойчиво, без экстремальных "
+    "дефицитов и «голодных» рационов; опора на доказанные паттерны (средиземноморский, "
+    "высокобелковый дефицит, DASH). Учитывай выбранный паттерн и ограничения пользователя "
+    "(аллергии, вегетарианство и т.п.). Каждый день — 3–4 приёма пищи, сумма за день должна "
+    "быть близка к цели по калориям (±7%) и разумно бить по белкам/жирам/углеводам. "
+    "Рецепт — 1–2 коротких предложения. Это не медицинская рекомендация."
+)
+
+_MEAL_PLAN_DAYS_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+_MEAL_PLAN_DAYS_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+async def generate_meal_plan(cal: int, protein: int, fat: int, carb: int,
+                             pattern: str, restrictions: str, goal_mode: str = "lose",
+                             lang: str = "ru") -> Optional[dict]:
+    """Сгенерировать недельный план питания. Возвращает dict или None при сбое.
+
+    Формат: {"days":[{"day":<str>,"meals":[{"title","grams","kcal","protein_g","fat_g",
+    "carb_g","recipe"}]}], "shopping":[<str>]}
+    """
+    days = _MEAL_PLAN_DAYS_RU if lang == "ru" else _MEAL_PLAN_DAYS_EN
+    goal_map = {"lose": "похудение (дефицит)", "maintain": "поддержание", "gain": "набор массы"}
+    prompt = (
+        f"Дневные цели: {cal} ккал, белки {protein} г, жиры {fat} г, углеводы {carb} г. "
+        f"Режим: {goal_map.get(goal_mode, goal_mode)}. Паттерн питания: {pattern}. "
+        f"Ограничения/предпочтения: {restrictions or 'нет'}. "
+        f"Названия дней используй ровно эти и по порядку: {', '.join(days)}. "
+        f"Язык всех текстов (блюда, рецепты, список покупок): {_LANG_NAME.get(lang, 'русском')}. "
+        "Верни ТОЛЬКО валидный JSON без markdown по схеме:\n"
+        '{"days":[{"day":<str>,"meals":[{"title":<str>,"grams":<int>,"kcal":<int>,'
+        '"protein_g":<int>,"fat_g":<int>,"carb_g":<int>,"recipe":<str>}]}],'
+        '"shopping":[<str список продуктов на неделю>]}'
+    )
+    try:
+        resp = await _client.chat.completions.create(
+            model=config.OPENAI_MODEL,
+            messages=[{"role": "system", "content": _MEAL_PLAN_SYSTEM},
+                      {"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            max_tokens=4000,
+            temperature=0.5,
+        )
+        data = json.loads(resp.choices[0].message.content)
+        if not isinstance(data.get("days"), list) or not data["days"]:
+            return None
+        data.setdefault("shopping", [])
+        return data
+    except Exception:
+        return None
+
+
 async def diet_advice(goal: int, consumed: int, items_today: list,
                       goal_mode: str = "lose", macros: dict = None,
                       macro_goals: dict = None, lang: str = "ru") -> str:

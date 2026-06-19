@@ -146,6 +146,13 @@ def macros_enabled(user) -> bool:
     return user_plan(user) == "premium_plus"
 
 
+def meal_plan_enabled(user) -> bool:
+    """Доступны ли планы питания: при выключенной монетизации — всем; иначе — любой активный Premium."""
+    if not monetization_enabled():
+        return True
+    return user_plan(user) in ("premium", "premium_plus")
+
+
 def access_mode(user, today: dt.date) -> str:
     """Каким способом пройдёт следующий ИИ-анализ:
     byok | unlimited | premium | credit | free | blocked.

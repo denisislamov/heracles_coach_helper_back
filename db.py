@@ -174,6 +174,14 @@ CREATE TABLE IF NOT EXISTS news (
     published_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_news_pub ON news(published, published_at DESC);
+
+-- Недельный план питания (Premium). Один активный план на пользователя, JSON в тексте.
+CREATE TABLE IF NOT EXISTS meal_plans (
+    user_id    BIGINT PRIMARY KEY,
+    data       TEXT NOT NULL,           -- JSON: {"days":[...], "shopping":[...]}
+    pattern    TEXT,                    -- выбранный паттерн (mediterranean и т.п.)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 """
 
 
@@ -522,6 +530,22 @@ async def mark_alpha(user_id: int) -> None:
     """Пометить пользователя как участника альфа-теста."""
     async with _pool.acquire() as conn:
         await conn.execute("UPDATE users SET is_alpha=TRUE WHERE user_id=$1", user_id)
+
+
+async def save_meal_plan(user_id: int, data_json: str, pattern: str = None) -> None:
+    """Сохранить (заменить) недельный план питания пользователя."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO meal_plans (user_id, data, pattern) VALUES ($1, $2, $3)
+               ON CONFLICT (user_id) DO UPDATE
+               SET data = EXCLUDED.data, pattern = EXCLUDED.pattern, created_at = now()""",
+            user_id, data_json, pattern)
+
+
+async def get_meal_plan(user_id: int):
+    """Вернуть запись плана (data — JSON-текст) или None."""
+    async with _pool.acquire() as conn:
+        return await conn.fetchrow("SELECT * FROM meal_plans WHERE user_id=$1", user_id)
 
 
 async def set_profile(user_id: int, sex, age, height_cm, weight_kg, activity, sport=None) -> None:

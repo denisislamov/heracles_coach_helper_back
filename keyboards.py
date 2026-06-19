@@ -41,7 +41,8 @@ def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
          InlineKeyboardButton(t("btn_week", lang), callback_data="week")],
         [InlineKeyboardButton(t("btn_pickdate", lang), callback_data="pickdate"),
          InlineKeyboardButton(t("btn_favorites", lang), callback_data="favs")],
-        [InlineKeyboardButton(t("btn_barcode", lang), callback_data="barcode")],
+        [InlineKeyboardButton(t("btn_barcode", lang), callback_data="barcode"),
+         InlineKeyboardButton(t("btn_mealplan", lang), callback_data="mealplan")],
         [InlineKeyboardButton(t("btn_set_goal", lang), callback_data="set_goal")],
         [InlineKeyboardButton(t("btn_mode", lang), callback_data="set_mode"),
          InlineKeyboardButton(t("btn_profile", lang), callback_data="set_profile")],
@@ -52,6 +53,43 @@ def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
         rows.append([InlineKeyboardButton(t("btn_invite", lang), callback_data="invite")])
     rows.append([InlineKeyboardButton(t("btn_settings", lang), callback_data="settings"),
                  InlineKeyboardButton(t("btn_feedback", lang), callback_data="feedback")])
+    return InlineKeyboardMarkup(rows)
+
+
+MEAL_PATTERNS = ["balanced", "mediterranean", "high_protein", "low_carb", "vegetarian"]
+
+
+def meal_pattern_menu(lang: str = "ru") -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(t(f"mp_pat_{p}", lang), callback_data=f"mp_pat:{p}")]
+            for p in MEAL_PATTERNS]
+    rows.append([InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")])
+    return InlineKeyboardMarkup(rows)
+
+
+def meal_skip_restrict_kb(lang: str = "ru") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton(t("mp_skip", lang), callback_data="mp_gen")]])
+
+
+def mealplan_day_kb(plan: dict, day_idx: int, lang: str = "ru") -> InlineKeyboardMarkup:
+    """Кнопки приёмов («съесть») + навигация по дням + список покупок/перегенерация."""
+    days = plan.get("days", [])
+    n = len(days)
+    meals = days[day_idx].get("meals", []) if 0 <= day_idx < n else []
+    rows = []
+    for i, m in enumerate(meals):
+        title = (m.get("title") or "")[:30]
+        rows.append([InlineKeyboardButton(
+            t("mp_eat_btn", lang, title=title), callback_data=f"mp_eat:{day_idx}:{i}")])
+    nav = []
+    if day_idx > 0:
+        nav.append(InlineKeyboardButton("◀", callback_data=f"mp_day:{day_idx-1}"))
+    nav.append(InlineKeyboardButton(f"{day_idx+1}/{n}", callback_data="mp_noop"))
+    if day_idx < n - 1:
+        nav.append(InlineKeyboardButton("▶", callback_data=f"mp_day:{day_idx+1}"))
+    rows.append(nav)
+    rows.append([InlineKeyboardButton(t("mp_shop_btn", lang), callback_data="mp_shop"),
+                 InlineKeyboardButton(t("mp_regen_btn", lang), callback_data="mp_regen")])
+    rows.append([InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")])
     return InlineKeyboardMarkup(rows)
 
 

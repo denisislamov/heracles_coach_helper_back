@@ -76,11 +76,23 @@ def profile_menu(lang: str = "ru") -> InlineKeyboardMarkup:
 import fasting as _fasting
 
 
-def fasting_choose_kb(lang: str = "ru") -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(_fasting.proto_label(h), callback_data=f"fast_start:{h}")]
-            for h in _fasting.PROTOCOLS]
-    rows.append([InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")])
-    return InlineKeyboardMarkup(rows)
+def fasting_choose_kb(idx: int, lang: str = "ru") -> InlineKeyboardMarkup:
+    """Витрина протоколов: листание ◀ idx/n ▶ + начать выбранный."""
+    protos = _fasting.PROTOCOLS
+    n = len(protos)
+    h = protos[idx]
+    nav = []
+    if idx > 0:
+        nav.append(InlineKeyboardButton("◀", callback_data=f"fast_nav:{idx-1}"))
+    nav.append(InlineKeyboardButton(f"{idx+1}/{n}", callback_data="fast_noop"))
+    if idx < n - 1:
+        nav.append(InlineKeyboardButton("▶", callback_data=f"fast_nav:{idx+1}"))
+    return InlineKeyboardMarkup([
+        nav,
+        [InlineKeyboardButton(t("fast_start_btn", lang, proto=_fasting.proto_label(h)),
+                              callback_data=f"fast_start:{h}")],
+        [InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")],
+    ])
 
 
 def fasting_active_kb(lang: str = "ru") -> InlineKeyboardMarkup:

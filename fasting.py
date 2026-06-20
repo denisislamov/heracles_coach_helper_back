@@ -14,6 +14,41 @@ log = logging.getLogger("calbot.fasting")
 # Протоколы: часы голодания (окно еды = 24 - N).
 PROTOCOLS = [14, 16, 18, 20, 23]
 
+PROTO_EMOJI = {14: "🟢", 16: "⭐", 18: "🔥", 20: "💪", 23: "🧘"}
+
+# Описание протоколов для витрины (двуязычно, без ИИ).
+PROTO_INFO = {
+    14: {"ru": {"tag": "мягкий старт", "who": "если только пробуешь голодание — самый комфортный вход."},
+         "en": {"tag": "gentle start", "who": "if you're new to fasting — the easiest way in."}},
+    16: {"ru": {"tag": "популярный", "who": "золотая середина: подходит большинству, хорош для старта."},
+         "en": {"tag": "most popular", "who": "the sweet spot: fits most people, great to start with."}},
+    18: {"ru": {"tag": "продвинутый", "who": "когда 16:8 уже стало привычным и хочется усилить."},
+         "en": {"tag": "advanced", "who": "when 16:8 feels easy and you want a bit more."}},
+    20: {"ru": {"tag": "для опытных", "who": "узкое окно еды — нужна привычка и хорошее самочувствие."},
+         "en": {"tag": "for experienced", "who": "a narrow eating window — needs habit and good well-being."}},
+    23: {"ru": {"tag": "OMAD · 1 приём в день", "who": "только для опытных, не подходит новичкам."},
+         "en": {"tag": "OMAD · one meal a day", "who": "for experienced only, not for beginners."}},
+}
+
+
+def proto_card(hours: int, lang: str, idx: int = None, total: int = None) -> str:
+    info = PROTO_INFO.get(hours, PROTO_INFO[16]).get(lang, PROTO_INFO[16]["ru"])
+    counter = f"  ({idx + 1}/{total})" if idx is not None and total else ""
+    eat = 24 - hours
+    if lang == "ru":
+        body = (f"{PROTO_EMOJI.get(hours, '⏳')} *{proto_label(hours)}* — {info['tag']}{counter}\n\n"
+                f"Голодание: *{hours}ч* · окно еды: *{eat}ч*\n"
+                f"Кому: {info['who']}\n\n"
+                "_Голодание подходит не всем: при диабете, беременности, РПП и до 18 лет — "
+                "не начинай без консультации врача._")
+    else:
+        body = (f"{PROTO_EMOJI.get(hours, '⏳')} *{proto_label(hours)}* — {info['tag']}{counter}\n\n"
+                f"Fasting: *{hours}h* · eating window: *{eat}h*\n"
+                f"Best for: {info['who']}\n\n"
+                "_Fasting isn't for everyone: with diabetes, pregnancy, eating disorders or under 18 — "
+                "don't start without medical advice._")
+    return body
+
 # Стадии по часам голодания: (порог_часов, ключ_текста). Берём наибольший достигнутый.
 STAGES = [
     (0, "fast_stage_eat"),

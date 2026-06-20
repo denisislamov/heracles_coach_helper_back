@@ -138,9 +138,8 @@ _STR = {
         "fast_locked": ("⏳ *Трекер интервального голодания* — в тарифе *Premium+КБЖУ*.\n\nВыбирай "
                         "протокол (16:8 и др.), следи за таймером и стадиями, получай уведомление о "
                         "цели. Оформи Premium+КБЖУ, чтобы открыть."),
-        "fast_choose": ("Выбери протокол голодания (часы голодания : часы окна еды):\n\n"
-                        "_Голодание подходит не всем. При диабете, беременности, РПП и в возрасте "
-                        "до 18 — не начинай без консультации врача._"),
+        "fast_choose": ("⏳ *Интервальное голодание*\nЛистай карточки ◀ ▶ и жми «Начать» под подходящим протоколом."),
+        "fast_start_btn": "▶️ Начать {proto}",
         "fast_started": "▶️ Старт! Протокол {proto}. Я напомню, когда цель будет достигнута.",
         "fast_status": ("⏳ *Голодание {proto}*\n\nПрошло: *{elapsed}* из {target}ч\n{bar} {pct}%\n"
                         "{rem}\n\n🔬 Сейчас: {stage}\n\n_Ориентиры по стадиям индивидуальны и не "
@@ -468,9 +467,8 @@ _STR = {
         "fast_locked": ("⏳ *Intermittent fasting tracker* is in the *Premium+Macros* plan.\n\nPick a "
                         "protocol (16:8, etc.), follow the timer and stages, get notified when you "
                         "reach your goal. Get Premium+Macros to unlock."),
-        "fast_choose": ("Pick a fasting protocol (fasting hours : eating window hours):\n\n"
-                        "_Fasting isn't for everyone. With diabetes, pregnancy, eating disorders or "
-                        "if under 18 — don't start without medical advice._"),
+        "fast_choose": ("⏳ *Intermittent fasting*\nSwipe the cards ◀ ▶ and tap “Start” under the protocol that fits."),
+        "fast_start_btn": "▶️ Start {proto}",
         "fast_started": "▶️ Started! Protocol {proto}. I'll remind you when you reach the goal.",
         "fast_status": ("⏳ *Fasting {proto}*\n\nElapsed: *{elapsed}* of {target}h\n{bar} {pct}%\n"
                         "{rem}\n\n🔬 Now: {stage}\n\n_Stage markers vary by person and are not "

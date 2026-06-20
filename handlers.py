@@ -708,7 +708,13 @@ async def _show_fasting(update, context, edit: bool = True):
     if fast:
         text, kbd = fasting.status_text(fast, lang), kb.fasting_active_kb(lang)
     else:
-        text, kbd = t("fast_choose", lang), kb.fasting_choose_kb(lang)
+        n = len(fasting.PROTOCOLS)
+        idx = context.user_data.get("fast_idx", 1)  # по умолчанию 16:8 (популярный)
+        idx = max(0, min(idx, n - 1))
+        context.user_data["fast_idx"] = idx
+        text = t("fast_choose", lang) + "\n\n" + fasting.proto_card(
+            fasting.PROTOCOLS[idx], lang, idx, n)
+        kbd = kb.fasting_choose_kb(idx, lang)
     if edit and update.callback_query:
         try:
             await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=kbd)
@@ -1069,6 +1075,11 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await _show_fasting(update, context)
     elif data == "fast_status":
         await _show_fasting(update, context)
+    elif data.startswith("fast_nav:"):
+        context.user_data["fast_idx"] = int(data.split(":")[1])
+        await _show_fasting(update, context)
+    elif data == "fast_noop":
+        pass
     elif data.startswith("fast_start:"):
         hours = int(data.split(":")[1])
         fid = await db.start_fast(uid, hours)

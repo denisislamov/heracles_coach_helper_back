@@ -348,6 +348,7 @@ _STR = {
         "ref_progress": "👥 По твоей ссылке пришёл друг! Ещё {n} — и бонус Premium.",
         "ref_nudge": ("💡 Хочешь Premium бесплатно? Приведи друга — и вы оба получите *{days} дней "
                       "Premium*. Просто поделись ссылкой:\n{link}"),
+        "generic_error": "⚠️ Упс, что-то пошло не так. Попробуй ещё раз чуть позже.",
         "ver_changes": "Последние изменения:",
         "manual_item": "ручной ввод",
         "photo_item_default": "блюдо с фото",
@@ -666,6 +667,7 @@ _STR = {
         "ref_progress": "👥 A friend joined via your link! {n} more for a Premium bonus.",
         "ref_nudge": ("💡 Want Premium for free? Invite a friend — you'll *both* get *{days} days of "
                       "Premium*. Just share your link:\n{link}"),
+        "generic_error": "⚠️ Oops, something went wrong. Please try again a bit later.",
         "ver_changes": "Latest changes:",
         "manual_item": "manual entry",
         "photo_item_default": "dish from photo",

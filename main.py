@@ -1,6 +1,7 @@
 """Точка входа. На Render запускается в режиме webhook, локально — polling."""
 import asyncio
 import logging
+import traceback
 
 from telegram import BotCommand, Update
 from telegram.ext import (Application, CommandHandler, MessageHandler,
@@ -76,6 +77,40 @@ async def _maybe_announce_changelog(application: Application) -> None:
     await db.set_setting("announced_version", version.VERSION)
 
 
+async def _on_error(update: object, context) -> None:
+    """Глобальный перехват ошибок: лог + уведомление админу + мягкий ответ юзеру."""
+    log.exception("Необработанная ошибка", exc_info=context.error)
+    tb = "".join(traceback.format_exception(
+        type(context.error), context.error, getattr(context.error, "__traceback__", None)))
+    info = ""
+    try:
+        if isinstance(update, Update):
+            if update.effective_user:
+                info += f"user={update.effective_user.id} "
+            if update.callback_query:
+                info += f"callback={update.callback_query.data!r} "
+            elif update.effective_message and (update.effective_message.text or "").strip():
+                info += f"text={update.effective_message.text[:60]!r} "
+    except Exception:
+        pass
+    admin_text = f"⚠️ Ошибка бота\n{info}\n\n{tb[-3200:]}"
+    for admin_id in config.ADMIN_IDS:
+        try:
+            await context.bot.send_message(admin_id, admin_text[:4096])
+        except Exception:
+            pass
+    # мягкое сообщение пользователю, чтобы не было «ничего не происходит»
+    try:
+        if isinstance(update, Update) and update.effective_message:
+            lang = "ru"
+            if update.effective_user:
+                u = await db.get_user(update.effective_user.id)
+                lang = u["lang"] if u else "ru"
+            await update.effective_message.reply_text(handlers.t("generic_error", lang))
+    except Exception:
+        pass
+
+
 async def _post_shutdown(application: Application) -> None:
     await db.close()
 
@@ -119,6 +154,7 @@ def build_app() -> Application:
     app.add_handler(PreCheckoutQueryHandler(payments.on_pre_checkout))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, payments.on_successful_payment))
     app.add_handler(CallbackQueryHandler(handlers.on_callback))
+    app.add_error_handler(_on_error)
     return app
 
 

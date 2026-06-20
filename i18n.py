@@ -49,12 +49,23 @@ _STR = {
         "btn_set_goal": "🎯 Изменить цель",
         "btn_mode": "🏃 Режим цели",
         "btn_profile": "👤 Профиль",
+        "btn_extras": "✨ Возможности",
         "btn_premium": "⭐ Premium",
         "btn_invite": "👥 Пригласить друга",
         "btn_settings": "⚙️ Настройки",
         "btn_feedback": "🛟 Обратная связь",
         "btn_back": "⬅️ Назад",
         "btn_back_menu": "⬅️ В меню",
+        "extras_title": ("✨ *Возможности Жиромера*\n\nВыбери, что попробовать. Основное — "
+                         "просто пришли фото или описание еды в чат, считать ничего не нужно."),
+        "prof_view": ("👤 *Твой профиль*\n\n🎯 Цель: *{goal}* ккал/день · {mode}\n"
+                      "🥗 Норма КБЖУ: Б {p} · Ж {f} · У {c} г\n\n"
+                      "📋 Данные: {sex}, {age}, рост {height}, вес {weight}\n"
+                      "🏃 Активность: {activity}\n⚽ Спорт: {sport}\n💎 Тариф: {plan}"),
+        "prof_edit_goal": "🎯 Изменить цель",
+        "prof_edit_mode": "🏃 Режим цели",
+        "prof_edit_profile": "📋 Обновить данные",
+        "prof_dash": "—",
         "btn_lang": "🌐 Язык",
         # онбординг
         "choose_goal": "Для начала выбери свою *цель*:",
@@ -191,12 +202,9 @@ _STR = {
             "• 📷 + подпись — оценю точнее (например: «куриная грудка 200 г»).\n"
             "• ✍️ Просто текст блюда — оценю по описанию.\n"
             "• 🔢 Просто число (напр. `350`) — добавлю вручную.\n\n"
-            "Ошибся? Под каждой записью кнопки *✏️ Исправить* и *🗑 Удалить*.\n"
-            "🥗 *КБЖУ* считаю по научным нормам (ВОЗ/DRI, для спорта — ACSM/ISSN) "
-            "под твою цель и активность. *Занимаешься спортом?* Укажи свой вид спорта "
-            "в профиле — подберу нормы белков/жиров/углеводов точнее.\n"
-            "⚙️ Цель, режим и профиль — в /menu → Настройки.\n"
-            "Меню — /menu."),
+            "Ошибся? Под каждой записью — кнопки *✏️ Исправить* и *🗑 Удалить*.\n\n"
+            "✨ Планы питания, подбор диеты и трекер голодания — в /menu → *Возможности*.\n"
+            "👤 Цель и профиль — /menu → *Профиль*."),
         "plans_title": "Тарифы:",
         "plans_tail": "Premium — {price}★/мес. Подробнее: /premium",
         "plans_tail_macros": "Premium — {price}★/мес, Premium+КБЖУ — {mprice}★/мес. /premium",
@@ -367,12 +375,23 @@ _STR = {
         "btn_set_goal": "🎯 Change goal",
         "btn_mode": "🏃 Goal mode",
         "btn_profile": "👤 Profile",
+        "btn_extras": "✨ Features",
         "btn_premium": "⭐ Premium",
         "btn_invite": "👥 Invite a friend",
         "btn_settings": "⚙️ Settings",
         "btn_feedback": "🛟 Feedback",
         "btn_back": "⬅️ Back",
         "btn_back_menu": "⬅️ To menu",
+        "extras_title": ("✨ *Zhiromer features*\n\nPick what to try. The basics — just send a food "
+                         "photo or description to the chat, no manual counting needed."),
+        "prof_view": ("👤 *Your profile*\n\n🎯 Goal: *{goal}* kcal/day · {mode}\n"
+                      "🥗 Macro target: P {p} · F {f} · C {c} g\n\n"
+                      "📋 Details: {sex}, {age}, height {height}, weight {weight}\n"
+                      "🏃 Activity: {activity}\n⚽ Sport: {sport}\n💎 Plan: {plan}"),
+        "prof_edit_goal": "🎯 Change goal",
+        "prof_edit_mode": "🏃 Goal mode",
+        "prof_edit_profile": "📋 Update details",
+        "prof_dash": "—",
         "btn_lang": "🌐 Language",
         "choose_goal": "First, choose your *goal*:",
         "mode_lose": "🔻 Lose weight",
@@ -502,12 +521,9 @@ _STR = {
             "• 📷 + caption — more accurate (e.g. 'chicken breast 200 g').\n"
             "• ✍️ Just describe the dish in text.\n"
             "• 🔢 Just a number (e.g. `350`) — I'll add it manually.\n\n"
-            "Mistake? Each entry has *✏️ Fix* and *🗑 Delete* buttons.\n"
-            "🥗 *Protein/fat/carbs* are calculated from science-based references "
-            "(WHO/DRI, and ACSM/ISSN for sport) to match your goal and activity. "
-            "*Do you play a sport?* Add it in your profile — I'll tune your macro targets.\n"
-            "⚙️ Goal, mode and profile — in /menu → Settings.\n"
-            "Menu — /menu."),
+            "Mistake? Each entry has *✏️ Fix* and *🗑 Delete* buttons.\n\n"
+            "✨ Meal plans, diet matching and a fasting tracker — in /menu → *Features*.\n"
+            "👤 Goal and profile — /menu → *Profile*."),
         "plans_title": "Plans:",
         "plans_tail": "Premium — {price}★/mo. Details: /premium",
         "plans_tail_macros": "Premium — {price}★/mo, Premium+Macros — {mprice}★/mo. /premium",

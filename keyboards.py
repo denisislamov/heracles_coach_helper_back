@@ -36,26 +36,41 @@ def tz_display(tzname: str) -> str:
 
 
 def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
+    """Чистое главное меню: дневник, возможности, профиль, настройки."""
     rows = [
         [InlineKeyboardButton(t("btn_today", lang), callback_data="today"),
          InlineKeyboardButton(t("btn_week", lang), callback_data="week")],
-        [InlineKeyboardButton(t("btn_pickdate", lang), callback_data="pickdate"),
-         InlineKeyboardButton(t("btn_favorites", lang), callback_data="favs")],
-        [InlineKeyboardButton(t("btn_barcode", lang), callback_data="barcode"),
-         InlineKeyboardButton(t("btn_mealplan", lang), callback_data="mealplan")],
-        [InlineKeyboardButton(t("btn_diet", lang), callback_data="diet"),
-         InlineKeyboardButton(t("btn_fasting", lang), callback_data="fasting")],
-        [InlineKeyboardButton(t("btn_set_goal", lang), callback_data="set_goal")],
-        [InlineKeyboardButton(t("btn_mode", lang), callback_data="set_mode"),
-         InlineKeyboardButton(t("btn_profile", lang), callback_data="set_profile")],
+        [InlineKeyboardButton(t("btn_extras", lang), callback_data="extras")],
+        [InlineKeyboardButton(t("btn_profile", lang), callback_data="profile"),
+         InlineKeyboardButton(t("btn_settings", lang), callback_data="settings")],
     ]
     if payments.monetization_enabled():
         rows.append([InlineKeyboardButton(t("btn_premium", lang), callback_data="premium")])
     if payments.referral_enabled():
         rows.append([InlineKeyboardButton(t("btn_invite", lang), callback_data="invite")])
-    rows.append([InlineKeyboardButton(t("btn_settings", lang), callback_data="settings"),
-                 InlineKeyboardButton(t("btn_feedback", lang), callback_data="feedback")])
     return InlineKeyboardMarkup(rows)
+
+
+def extras_menu(lang: str = "ru") -> InlineKeyboardMarkup:
+    """Подменю «Возможности»: продвинутые функции, чтобы не грузить главный экран."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("btn_mealplan", lang), callback_data="mealplan"),
+         InlineKeyboardButton(t("btn_diet", lang), callback_data="diet")],
+        [InlineKeyboardButton(t("btn_fasting", lang), callback_data="fasting")],
+        [InlineKeyboardButton(t("btn_favorites", lang), callback_data="favs"),
+         InlineKeyboardButton(t("btn_pickdate", lang), callback_data="pickdate")],
+        [InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")],
+    ])
+
+
+def profile_menu(lang: str = "ru") -> InlineKeyboardMarkup:
+    """Кнопки под просмотром профиля — правка цели/режима/данных."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("prof_edit_goal", lang), callback_data="set_goal"),
+         InlineKeyboardButton(t("prof_edit_mode", lang), callback_data="set_mode")],
+        [InlineKeyboardButton(t("prof_edit_profile", lang), callback_data="set_profile")],
+        [InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")],
+    ])
 
 
 import fasting as _fasting
@@ -157,7 +172,6 @@ def settings_menu(user) -> InlineKeyboardMarkup:
     lang = user["lang"]
     on, off = t("on", lang), t("off", lang)
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(t("s_goal", lang, v=user['goal'] or '—'), callback_data="set_goal")],
         [InlineKeyboardButton(t("s_daily_time", lang, v=f"{user['daily_hour']:02d}:00"),
                               callback_data="set_hour")],
         [InlineKeyboardButton(t("s_weekly_day", lang, v=i18n.weekday(user['weekly_dow'], lang)),
@@ -167,11 +181,9 @@ def settings_menu(user) -> InlineKeyboardMarkup:
          InlineKeyboardButton(t("s_weekly", lang, v=on if user["weekly_on"] else off), callback_data="toggle_weekly")],
         [InlineKeyboardButton(t("s_reminders", lang, v=on if user["reminders_on"] else off), callback_data="toggle_rem"),
          InlineKeyboardButton(t("s_every", lang, n=user['reminder_interval']), callback_data="set_rem_int")],
-        [InlineKeyboardButton(t("s_mode", lang, v=t(_MODE_KEY.get(user['goal_mode'], 'm_lose'), lang)),
-                              callback_data="set_mode"),
-         InlineKeyboardButton(t("s_profile", lang), callback_data="set_profile")],
         [InlineKeyboardButton(t("btn_lang", lang), callback_data="set_lang"),
-         InlineKeyboardButton(t("s_reset", lang), callback_data="reset")],
+         InlineKeyboardButton(t("btn_feedback", lang), callback_data="feedback")],
+        [InlineKeyboardButton(t("s_reset", lang), callback_data="reset")],
         [InlineKeyboardButton(t("btn_back", lang), callback_data="menu")],
     ])
 

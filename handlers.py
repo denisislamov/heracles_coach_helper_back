@@ -662,6 +662,46 @@ async def _generate_mealplan(update, context):
     await _render_mealplan_day(update, context, 0, edit=False)
 
 
+# --------------------------------------------------------- просмотр профиля
+
+_PLAN_LABEL = {
+    "ru": {"free": "Free", "premium": "Premium", "premium_plus": "Premium+КБЖУ"},
+    "en": {"free": "Free", "premium": "Premium", "premium_plus": "Premium+Macros"},
+}
+
+
+async def _show_profile(update, context, edit: bool = True):
+    """Показать текущий профиль (а не сразу его перезаполнять)."""
+    uid = update.effective_user.id
+    user = await db.get_user(uid)
+    lang = user["lang"]
+    dash = t("prof_dash", lang)
+    p, f, c = nutrition.goals_for_user(user)
+    goal = user["goal"] or nutrition.default_goal(user["goal_mode"] or "lose")
+    mode = t({"lose": "mode_lose", "maintain": "mode_maintain", "gain": "mode_gain"}
+             .get(user["goal_mode"] or "lose", "mode_lose"), lang)
+    sex = t({"male": "sex_male", "female": "sex_female"}.get(user.get("sex"), ""), lang) \
+        if user.get("sex") else dash
+    act = t({"sedentary": "act_sed", "light": "act_light", "moderate": "act_mod",
+             "active": "act_active", "very_active": "act_vhigh"}.get(user.get("activity"), ""), lang) \
+        if user.get("activity") else dash
+    age = (f"{user['age']}" if user.get("age") else dash)
+    height = (f"{user['height_cm']} {'см' if lang == 'ru' else 'cm'}" if user.get("height_cm") else dash)
+    weight = (f"{user['weight_kg']} {'кг' if lang == 'ru' else 'kg'}" if user.get("weight_kg") else dash)
+    sport = user.get("sport") or dash
+    plan = _PLAN_LABEL.get(lang, _PLAN_LABEL["ru"]).get(payments.user_plan(user), "Free")
+    text = t("prof_view", lang, goal=goal, mode=mode, p=p, f=f, c=c, sex=sex,
+             age=age, height=height, weight=weight, activity=act, sport=sport, plan=plan)
+    kbd = kb.profile_menu(lang)
+    if edit and update.callback_query:
+        try:
+            await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=kbd)
+            return
+        except BadRequest:
+            pass
+    await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=kbd)
+
+
 # --------------------------------------------------------- интервальное голодание (Premium)
 
 async def _show_fasting(update, context, edit: bool = True):
@@ -1112,6 +1152,12 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "menu":
         await q.edit_message_text(t("menu", lang), reply_markup=kb.main_menu(lang))
+
+    elif data == "extras":
+        await q.edit_message_text(t("extras_title", lang), parse_mode="Markdown",
+                                  reply_markup=kb.extras_menu(lang))
+    elif data == "profile":
+        await _show_profile(update, context)
 
     elif data == "today":
         context.user_data.pop("entry_date", None)

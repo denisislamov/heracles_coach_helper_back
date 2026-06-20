@@ -129,6 +129,11 @@ _STR = {
         "diet_to_plan": "🍽 Составить план по этой диете",
         "diet_redo": "🔄 Подобрать заново",
         "diet_disclaimer": "_Это не медицинская рекомендация. При заболеваниях обратись к специалисту._",
+        "diet_browse_intro": ("🥗 *Выбери стиль питания*\n\nЛистай карточки ◀ ▶ и выбери подходящий. "
+                              "Это рекомендация, а не строгая диета."),
+        "diet_choose_btn": "✅ Выбрать эту",
+        "diet_other_btn": "📖 Другие диеты",
+        "diet_chosen": "✅ Твоя диета: *{name}*\n\nМожно сразу составить недельный план под неё.",
         "btn_fasting": "⏳ Голодание",
         "fast_locked": ("⏳ *Трекер интервального голодания* — в тарифе *Premium+КБЖУ*.\n\nВыбирай "
                         "протокол (16:8 и др.), следи за таймером и стадиями, получай уведомление о "
@@ -454,6 +459,11 @@ _STR = {
         "diet_to_plan": "🍽 Build a meal plan for this diet",
         "diet_redo": "🔄 Match again",
         "diet_disclaimer": "_This is not medical advice. If you have health conditions, consult a professional._",
+        "diet_browse_intro": ("🥗 *Choose an eating style*\n\nSwipe the cards ◀ ▶ and pick what fits. "
+                              "It's guidance, not a strict diet."),
+        "diet_choose_btn": "✅ Choose this",
+        "diet_other_btn": "📖 Other diets",
+        "diet_chosen": "✅ Your diet: *{name}*\n\nYou can build a weekly plan for it right away.",
         "btn_fasting": "⏳ Fasting",
         "fast_locked": ("⏳ *Intermittent fasting tracker* is in the *Premium+Macros* plan.\n\nPick a "
                         "protocol (16:8, etc.), follow the timer and stages, get notified when you "

@@ -92,24 +92,32 @@ def fasting_active_kb(lang: str = "ru") -> InlineKeyboardMarkup:
     ])
 
 
-DIET_FOCUS = ["lose", "heart", "muscle", "balanced"]
+import diets as _diets
 
 
-def diet_focus_menu(lang: str = "ru") -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(t(f"dq_focus_{x}", lang), callback_data=f"dq_focus:{x}")]
-            for x in DIET_FOCUS]
-    rows.append([InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")])
-    return InlineKeyboardMarkup(rows)
+def diet_gallery_kb(idx: int, lang: str = "ru") -> InlineKeyboardMarkup:
+    """Витрина диет: листание ◀ idx/n ▶ + выбрать текущую."""
+    keys = _diets.DIETS
+    n = len(keys)
+    key = keys[idx]
+    nav = []
+    if idx > 0:
+        nav.append(InlineKeyboardButton("◀", callback_data=f"diet_nav:{idx-1}"))
+    nav.append(InlineKeyboardButton(f"{idx+1}/{n}", callback_data="diet_noop"))
+    if idx < n - 1:
+        nav.append(InlineKeyboardButton("▶", callback_data=f"diet_nav:{idx+1}"))
+    return InlineKeyboardMarkup([
+        nav,
+        [InlineKeyboardButton(t("diet_choose_btn", lang), callback_data=f"diet_pick:{key}")],
+        [InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")],
+    ])
 
 
-def diet_skip_kb(lang: str = "ru") -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[InlineKeyboardButton(t("mp_skip", lang), callback_data="dq_gen")]])
-
-
-def diet_result_kb(lang: str = "ru") -> InlineKeyboardMarkup:
+def diet_chosen_kb(lang: str = "ru") -> InlineKeyboardMarkup:
+    """После выбора диеты: составить план / посмотреть другие."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(t("diet_to_plan", lang), callback_data="diet_to_plan")],
-        [InlineKeyboardButton(t("diet_redo", lang), callback_data="diet_redo")],
+        [InlineKeyboardButton(t("diet_other_btn", lang), callback_data="diet_browse")],
         [InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")],
     ])
 

@@ -507,11 +507,6 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _generate_mealplan(update, context)
         return
 
-    if awaiting == "diet_restrict":
-        context.user_data["diet_restrict"] = text[:200]
-        await _generate_diet(update, context)
-        return
-
     if awaiting == "barcode_photo":  # пользователь прислал цифры штрих-кода текстом
         digits = re.sub(r"\D", "", text)
         if len(digits) >= 8:
@@ -721,44 +716,6 @@ async def _show_fasting(update, context, edit: bool = True):
         except BadRequest:
             pass
     await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=kbd)
-
-
-# --------------------------------------------------------- подбор диеты (Premium)
-
-async def _show_diet(update, context, edit: bool = True):
-    """Показать сохранённую рекомендацию диеты + кнопки."""
-    uid = update.effective_user.id
-    user = await db.get_user(uid)
-    lang = user["lang"]
-    text = user.get("diet_text") or ""
-    body = text + "\n\n" + t("diet_disclaimer", lang)
-    kbd = kb.diet_result_kb(lang)
-    if edit and update.callback_query:
-        try:
-            await update.callback_query.edit_message_text(body, parse_mode="Markdown", reply_markup=kbd)
-            return
-        except BadRequest:
-            pass
-    await update.effective_message.reply_text(body, parse_mode="Markdown", reply_markup=kbd)
-
-
-async def _generate_diet(update, context):
-    """Подобрать диету по опроснику и профилю, сохранить и показать."""
-    uid = update.effective_user.id
-    user = await db.get_user(uid)
-    lang = user["lang"]
-    focus = context.user_data.get("diet_focus", "balanced")
-    restrict = context.user_data.pop("diet_restrict", "")
-    context.user_data.pop("awaiting", None)
-    await update.effective_message.reply_text(t("diet_generating", lang))
-    await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
-    rec = await ai.recommend_diet(user["goal_mode"] or "lose", user.get("activity"),
-                                  user.get("sport"), focus, restrict, lang)
-    if not rec:
-        await update.effective_message.reply_text(t("diet_fail", lang))
-        return
-    await db.save_diet(uid, rec["pattern"], rec["text"])
-    await _show_diet(update, context, edit=False)
 
 
 async def on_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1070,23 +1027,33 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await q.message.reply_text(
                     t("mp_eaten", lang, title=m.get("title", "—"), kcal=_i(m.get("kcal"))))
 
-    elif data == "diet":
+    elif data in ("diet", "diet_browse"):
         if not payments.meal_plan_enabled(user):
             await q.edit_message_text(t("diet_locked", lang), parse_mode="Markdown",
                                       reply_markup=payments.paywall_keyboard(lang))
-        elif user.get("diet_text"):
-            await _show_diet(update, context)
         else:
-            await q.edit_message_text(t("diet_q_focus", lang),
-                                      reply_markup=kb.diet_focus_menu(lang))
-    elif data == "diet_redo":
-        await q.edit_message_text(t("diet_q_focus", lang), reply_markup=kb.diet_focus_menu(lang))
-    elif data.startswith("dq_focus:"):
-        context.user_data["diet_focus"] = data.split(":")[1]
-        context.user_data["awaiting"] = "diet_restrict"
-        await q.edit_message_text(t("diet_ask_restrict", lang), reply_markup=kb.diet_skip_kb(lang))
-    elif data == "dq_gen":
-        await _generate_diet(update, context)
+            # витрина диет: старт с выбранной ранее (если есть), иначе с первой
+            cur = user.get("diet_pattern")
+            idx = diets.DIETS.index(cur) if cur in diets.DIETS else 0
+            await q.edit_message_text(
+                t("diet_browse_intro", lang) + "\n\n" + diets.card(diets.DIETS[idx], lang, idx, len(diets.DIETS)),
+                parse_mode="Markdown", reply_markup=kb.diet_gallery_kb(idx, lang))
+    elif data.startswith("diet_nav:"):
+        idx = max(0, min(int(data.split(":")[1]), len(diets.DIETS) - 1))
+        await q.edit_message_text(
+            t("diet_browse_intro", lang) + "\n\n" + diets.card(diets.DIETS[idx], lang, idx, len(diets.DIETS)),
+            parse_mode="Markdown", reply_markup=kb.diet_gallery_kb(idx, lang))
+    elif data == "diet_noop":
+        pass
+    elif data.startswith("diet_pick:"):
+        key = data.split(":")[1]
+        if key not in diets.DIETS:
+            key = "balanced"
+        await db.save_diet(uid, key, diets.card(key, lang))
+        await q.edit_message_text(
+            t("diet_chosen", lang, name=diets.name(key, lang)) + "\n\n" + diets.card(key, lang)
+            + "\n\n" + t("diet_disclaimer", lang),
+            parse_mode="Markdown", reply_markup=kb.diet_chosen_kb(lang))
     elif data == "diet_to_plan":
         # Связка с планами: берём рекомендованный паттерн и идём в генерацию плана.
         context.user_data["mp_pattern"] = user.get("diet_pattern") or "balanced"

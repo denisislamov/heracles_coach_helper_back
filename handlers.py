@@ -14,6 +14,7 @@ import ai
 import barcode as barcode_mod
 import config
 import db
+import diets
 import fasting
 import feedback
 import foodfacts

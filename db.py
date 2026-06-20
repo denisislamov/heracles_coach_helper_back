@@ -277,6 +277,13 @@ async def add_entry(user_id: int, calories: int, item: str, entry_date: date,
         )
 
 
+async def count_entries(user_id: int) -> int:
+    """Всего записей еды у пользователя (для маркетинговых триггеров)."""
+    async with _pool.acquire() as conn:
+        return int(await conn.fetchval(
+            "SELECT count(*) FROM entries WHERE user_id=$1", user_id) or 0)
+
+
 async def day_macros(user_id: int, entry_date: date) -> dict:
     """Сумма Б/Ж/У за день (нули, если не задано)."""
     async with _pool.acquire() as conn:

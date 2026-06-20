@@ -355,6 +355,24 @@ async def _log_and_reply(update, context, calories: int, item: str, result: dict
     await update.effective_message.reply_text(
         msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id, backdated, lang))
     await _maybe_advice(update, user, day, total, goal)
+    await _maybe_referral_nudge(update, context, user)
+
+
+async def _maybe_referral_nudge(update, context, user):
+    """Бесплатным юзерам каждую 5-ю запись мягко напоминаем о реферальной программе."""
+    if not payments.referral_enabled() or payments.user_plan(user) != "free":
+        return
+    cnt = await db.count_entries(user["user_id"])
+    if cnt == 0 or cnt % 5 != 0:
+        return
+    try:
+        me = await context.bot.get_me()
+        link = f"https://t.me/{me.username}?start=ref_{user['user_id']}"
+        await update.effective_message.reply_text(
+            t("ref_nudge", user["lang"], days=payments.referral_reward_days(), link=link),
+            parse_mode="Markdown")
+    except Exception as e:
+        log.warning("ref nudge: %s", e)
 
 
 async def _reply_after_edit(update, user, entry_id: int, item: str, calories: int, day):

@@ -346,6 +346,8 @@ _STR = {
         "ref_friend_bonus": "🎁 Ты пришёл по приглашению — тебе *{days} дней Premium* в подарок!",
         "ref_got_bonus": "🎉 По твоей ссылке пришёл друг — тебе *{days} дней Premium*! Спасибо 🙌",
         "ref_progress": "👥 По твоей ссылке пришёл друг! Ещё {n} — и бонус Premium.",
+        "ref_nudge": ("💡 Хочешь Premium бесплатно? Приведи друга — и вы оба получите *{days} дней "
+                      "Premium*. Просто поделись ссылкой:\n{link}"),
         "ver_changes": "Последние изменения:",
         "manual_item": "ручной ввод",
         "photo_item_default": "блюдо с фото",
@@ -662,6 +664,8 @@ _STR = {
         "ref_friend_bonus": "🎁 You joined via an invite — *{days} days of Premium* as a gift!",
         "ref_got_bonus": "🎉 A friend joined via your link — *{days} days of Premium* for you! Thanks 🙌",
         "ref_progress": "👥 A friend joined via your link! {n} more for a Premium bonus.",
+        "ref_nudge": ("💡 Want Premium for free? Invite a friend — you'll *both* get *{days} days of "
+                      "Premium*. Just share your link:\n{link}"),
         "ver_changes": "Latest changes:",
         "manual_item": "manual entry",
         "photo_item_default": "dish from photo",

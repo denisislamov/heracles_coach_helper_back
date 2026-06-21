@@ -12,7 +12,7 @@
 
 {% set tabs = [('', 'Все'), ('active', 'Активные'), ('paying', 'Оплатившие'), ('passive', 'Пассивные'),
                ('premium', 'Premium'), ('premium_plus', 'Premium+КБЖУ'), ('alpha', 'Альфа'),
-               ('referred', 'Рефералы'), ('byok', 'BYOK')] %}
+               ('referred', 'Рефералы'), ('byok', 'BYOK'), ('blocked', '🚫 Заблокировали')] %}
 <div class="tabs">
   {% for key, label in tabs %}
     <a href="{{ url_for('users', filter=key, sort=sort, q=q) }}"

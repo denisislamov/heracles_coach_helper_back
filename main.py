@@ -4,6 +4,7 @@ import logging
 import traceback
 
 from telegram import BotCommand, Update
+from telegram.error import Forbidden
 from telegram.ext import (Application, CommandHandler, MessageHandler,
                           CallbackQueryHandler, PreCheckoutQueryHandler, filters)
 
@@ -56,13 +57,15 @@ async def _broadcast_changelog(context) -> None:
     text = (f"🆕 *Жиромер обновился до v{version.VERSION}*\n\nЧто нового:\n"
             + "\n".join(f"• {n}" for n in notes))
     sent = 0
-    for user in await db.all_users():
+    for user in await db.active_users():
         try:
             await context.bot.send_message(user["user_id"], text, parse_mode="Markdown")
             sent += 1
             await asyncio.sleep(0.05)  # ~20 сообщений/сек — в пределах лимитов
+        except Forbidden:
+            await db.set_blocked(user["user_id"], True)  # заблокировал бота — помечаем
         except Exception:
-            pass  # заблокировавшие бота и пр. — пропускаем
+            pass  # прочие сбои — пропускаем
     log.info("Changelog v%s разослан %s пользователям", version.VERSION, sent)
 
 

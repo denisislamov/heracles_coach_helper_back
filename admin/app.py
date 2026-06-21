@@ -181,6 +181,7 @@ SEGMENT_WHERE = {
     "premium_plus": "u.plan = 'premium_plus' AND u.premium_until > now()",
     "referred": "u.referred_by IS NOT NULL",
     "byok": "u.openai_key_enc IS NOT NULL",
+    "blocked": "u.blocked",
 }
 
 # Разрешённые варианты сортировки (защита от SQL-инъекций — только из белого списка).

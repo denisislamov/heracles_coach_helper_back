@@ -129,6 +129,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS is_alpha     BOOLEAN NOT NULL DEFAULT
 ALTER TABLE users ADD COLUMN IF NOT EXISTS sport        TEXT;  -- вид спорта (ручной ввод) для подбора норм КБЖУ
 ALTER TABLE users ADD COLUMN IF NOT EXISTS diet_pattern TEXT;  -- рекомендованный паттерн питания (mediterranean и т.п.)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS diet_text    TEXT;  -- текст рекомендации диеты (готовый к показу)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked      BOOLEAN NOT NULL DEFAULT FALSE;  -- заблокировал бота
 
 -- Рефералы: кто кого привёл (один реферал на нового пользователя).
 CREATE TABLE IF NOT EXISTS referrals (
@@ -226,7 +227,7 @@ async def ensure_user(user_id: int, username: str = None) -> bool:
         row = await conn.fetchrow(
             """INSERT INTO users (user_id, username, timezone, daily_hour, weekly_dow)
                VALUES ($1, $2, $3, $4, $5)
-               ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username
+               ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username, blocked = FALSE
                RETURNING (xmax = 0) AS inserted""",
             user_id, username, config.DEFAULT_TIMEZONE,
             config.DEFAULT_DAILY_HOUR, config.DEFAULT_WEEKLY_DOW,
@@ -242,6 +243,17 @@ async def get_user(user_id: int) -> Optional[asyncpg.Record]:
 async def all_users() -> list:
     async with _pool.acquire() as conn:
         return await conn.fetch("SELECT * FROM users")
+
+
+async def active_users() -> list:
+    """Пользователи, которые не блокировали бота (для рассылок/отчётов)."""
+    async with _pool.acquire() as conn:
+        return await conn.fetch("SELECT * FROM users WHERE NOT blocked")
+
+
+async def set_blocked(user_id: int, blocked: bool = True) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("UPDATE users SET blocked=$2 WHERE user_id=$1", user_id, blocked)
 
 
 async def set_goal(user_id: int, goal: int) -> None:

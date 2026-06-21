@@ -9,6 +9,7 @@ import logging
 import random
 
 import pytz
+from telegram.error import Forbidden
 
 import db
 
@@ -44,7 +45,7 @@ def schedule_user(application, user) -> None:
 
 
 async def schedule_all(application) -> None:
-    for user in await db.all_users():
+    for user in await db.active_users():
         schedule_user(application, user)
 
 
@@ -67,5 +68,9 @@ async def _job(context) -> None:
         return
     try:
         await context.bot.send_message(uid, random.choice(MESSAGES))
+    except Forbidden:
+        await db.set_blocked(uid, True)
+        for job in context.job_queue.get_jobs_by_name(f"rem_{uid}"):
+            job.schedule_removal()
     except Exception as e:
         log.warning("Не удалось отправить напоминание %s: %s", uid, e)

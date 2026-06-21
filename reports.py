@@ -9,6 +9,7 @@
 import datetime as dt
 
 import pytz
+from telegram.error import Forbidden
 
 import db
 import nutrition
@@ -114,15 +115,21 @@ async def _daily_job(context):
     user = await db.get_user(user_id)
     if not user:
         return
-    if user["daily_on"]:
-        text = await build_daily_text(user)
-        await context.bot.send_message(user_id, text, parse_mode="Markdown")
-    # недельный — в выбранный день недели
-    if user["weekly_on"]:
-        today = _today(user["timezone"])
-        if today.weekday() == user["weekly_dow"]:
-            text = await build_weekly_text(user)
+    try:
+        if user["daily_on"]:
+            text = await build_daily_text(user)
             await context.bot.send_message(user_id, text, parse_mode="Markdown")
+        # недельный — в выбранный день недели
+        if user["weekly_on"]:
+            today = _today(user["timezone"])
+            if today.weekday() == user["weekly_dow"]:
+                text = await build_weekly_text(user)
+                await context.bot.send_message(user_id, text, parse_mode="Markdown")
+    except Forbidden:
+        # пользователь заблокировал бота — помечаем и снимаем его задачи
+        await db.set_blocked(user_id, True)
+        for job in context.job_queue.get_jobs_by_name(f"report_{user_id}"):
+            job.schedule_removal()
 
 
 def schedule_user(application, user) -> None:
@@ -137,5 +144,5 @@ def schedule_user(application, user) -> None:
 
 
 async def schedule_all(application) -> None:
-    for user in await db.all_users():
+    for user in await db.active_users():
         schedule_user(application, user)

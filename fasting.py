@@ -6,6 +6,8 @@
 import datetime as dt
 import logging
 
+from telegram.error import Forbidden
+
 import db
 from i18n import t
 
@@ -119,6 +121,8 @@ async def _notify_goal(context) -> None:
         await context.bot.send_message(
             uid, t("fast_goal_reached", lang, proto=proto_label(fast["target_hours"])),
             parse_mode="Markdown")
+    except Forbidden:
+        await db.set_blocked(uid, True)
     except Exception as e:
         log.warning("fast notify %s: %s", uid, e)
 

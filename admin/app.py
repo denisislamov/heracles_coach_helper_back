@@ -310,6 +310,14 @@ def user_detail(uid):
                            star_usd=STAR_USD)
 
 
+# ----------------------------------------------------------------- Опросы
+@app.route("/surveys")
+@login_required
+def surveys():
+    rows = query("SELECT * FROM surveys ORDER BY created_at DESC LIMIT 500") or []
+    return render_template("surveys.html", rows=rows)
+
+
 # ----------------------------------------------------------------- Баг-репорты
 @app.route("/bugs", methods=["GET", "POST"])
 @login_required

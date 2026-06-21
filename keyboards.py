@@ -59,6 +59,7 @@ def extras_menu(lang: str = "ru") -> InlineKeyboardMarkup:
         [InlineKeyboardButton(t("btn_fasting", lang), callback_data="fasting")],
         [InlineKeyboardButton(t("btn_favorites", lang), callback_data="favs"),
          InlineKeyboardButton(t("btn_pickdate", lang), callback_data="pickdate")],
+        [InlineKeyboardButton(t("btn_survey", lang), callback_data="survey")],
         [InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")],
     ])
 

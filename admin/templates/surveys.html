@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% set active = 'surveys' %}
+{% block content %}
+<h1>📝 Опросы пользователей</h1>
+<p class="muted">Ответы на вопрос «чего не хватает для подписки / приглашения друга» + общий отзыв. За ответ выдаётся 3 дня Premium+КБЖУ.</p>
+
+{% if rows %}
+<table>
+  <tr><th>Дата</th><th>Пользователь</th><th>Ответ</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td class="muted" style="white-space:nowrap">{{ r.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+    <td style="white-space:nowrap">
+      {% if r.username %}@{{ r.username }}{% endif %}
+      <a href="{{ url_for('user_detail', uid=r.user_id) }}"><code>{{ r.user_id }}</code></a>
+    </td>
+    <td style="white-space:pre-wrap">{{ r.text }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Ответов пока нет.</p>
+{% endif %}
+{% endblock %}

@@ -189,6 +189,16 @@ CREATE TABLE IF NOT EXISTS fasts (
 );
 CREATE INDEX IF NOT EXISTS idx_fasts_user ON fasts(user_id, start_at DESC);
 
+-- Ответы пользователей на опрос (за награду). Видны в админке.
+CREATE TABLE IF NOT EXISTS surveys (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT NOT NULL,
+    username   TEXT,
+    text       TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_surveys_created ON surveys(created_at DESC);
+
 -- Недельный план питания (Premium). Один активный план на пользователя, JSON в тексте.
 CREATE TABLE IF NOT EXISTS meal_plans (
     user_id    BIGINT PRIMARY KEY,
@@ -287,6 +297,19 @@ async def add_entry(user_id: int, calories: int, item: str, entry_date: date,
                VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""",
             user_id, entry_date, calories, item, protein_g, fat_g, carb_g,
         )
+
+
+async def has_survey(user_id: int) -> bool:
+    async with _pool.acquire() as conn:
+        return bool(await conn.fetchval(
+            "SELECT 1 FROM surveys WHERE user_id=$1 LIMIT 1", user_id))
+
+
+async def add_survey(user_id: int, username: str, text: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO surveys (user_id, username, text) VALUES ($1, $2, $3)",
+            user_id, username, text)
 
 
 async def count_entries(user_id: int) -> int:

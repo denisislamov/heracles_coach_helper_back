@@ -349,6 +349,13 @@ _STR = {
         "ref_nudge": ("💡 Хочешь Premium бесплатно? Приведи друга — и вы оба получите *{days} дней "
                       "Premium*. Просто поделись ссылкой:\n{link}"),
         "generic_error": "⚠️ Упс, что-то пошло не так. Попробуй ещё раз чуть позже.",
+        "btn_survey": "🎁 Опрос — 3 дня Premium+КБЖУ",
+        "survey_intro": ("📝 *Помоги сделать Жиромер лучше!*\n\nНапиши одним сообщением:\n"
+                         "1) Чего тебе не хватает, чтобы оформить Premium или пригласить друга?\n"
+                         "2) Общий отзыв: что понравилось, что нет, что улучшить?\n\n"
+                         "За честный ответ дарим *3 дня Premium+КБЖУ* 🎁"),
+        "survey_thanks": "🎉 Спасибо за ответ! Начислили *3 дня Premium+КБЖУ*. Загляни в меню — всё уже доступно.",
+        "survey_already": "Ты уже проходил опрос — спасибо! 🙌 Награда выдаётся один раз.",
         "ver_changes": "Последние изменения:",
         "manual_item": "ручной ввод",
         "photo_item_default": "блюдо с фото",
@@ -668,6 +675,13 @@ _STR = {
         "ref_nudge": ("💡 Want Premium for free? Invite a friend — you'll *both* get *{days} days of "
                       "Premium*. Just share your link:\n{link}"),
         "generic_error": "⚠️ Oops, something went wrong. Please try again a bit later.",
+        "btn_survey": "🎁 Survey — 3 days Premium+Macros",
+        "survey_intro": ("📝 *Help make Zhiromer better!*\n\nIn one message:\n"
+                         "1) What's missing for you to get Premium or invite a friend?\n"
+                         "2) Overall feedback: what you liked, what you didn't, what to improve?\n\n"
+                         "For an honest answer we'll gift you *3 days of Premium+Macros* 🎁"),
+        "survey_thanks": "🎉 Thanks! We've added *3 days of Premium+Macros*. Open the menu — it's all unlocked.",
+        "survey_already": "You've already taken the survey — thank you! 🙌 The reward is one-time.",
         "ver_changes": "Latest changes:",
         "manual_item": "manual entry",
         "photo_item_default": "dish from photo",

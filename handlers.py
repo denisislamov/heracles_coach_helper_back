@@ -526,6 +526,18 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _generate_mealplan(update, context)
         return
 
+    if awaiting == "survey":
+        context.user_data.pop("awaiting", None)
+        uid = update.effective_user.id
+        if await db.has_survey(uid):
+            await update.message.reply_text(t("survey_already", ulang))
+            return
+        await db.add_survey(uid, update.effective_user.username, text[:2000])
+        await db.set_plan(uid, "premium_plus")
+        await db.grant_premium_days(uid, 3)
+        await update.message.reply_text(t("survey_thanks", ulang), parse_mode="Markdown")
+        return
+
     if awaiting == "barcode_photo":  # пользователь прислал цифры штрих-кода текстом
         digits = re.sub(r"\D", "", text)
         if len(digits) >= 8:
@@ -1155,6 +1167,12 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                   reply_markup=kb.extras_menu(lang))
     elif data == "profile":
         await _show_profile(update, context)
+    elif data == "survey":
+        if await db.has_survey(uid):
+            await q.edit_message_text(t("survey_already", lang), reply_markup=kb.back_to_menu(lang))
+        else:
+            context.user_data["awaiting"] = "survey"
+            await q.edit_message_text(t("survey_intro", lang), parse_mode="Markdown")
 
     elif data == "today":
         context.user_data.pop("entry_date", None)

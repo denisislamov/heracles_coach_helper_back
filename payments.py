@@ -7,6 +7,7 @@
 """
 import datetime as dt
 import logging
+import re
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
 from telegram.ext import ContextTypes
@@ -17,6 +18,11 @@ import db
 from i18n import t
 
 log = logging.getLogger("calbot.payments")
+
+
+def _md(s) -> str:
+    """Экранировать спецсимволы легаси-Markdown в динамической вставке (напр. @user_name)."""
+    return re.sub(r"([_*`\[])", r"\\\1", str(s or ""))
 
 PREMIUM_PAYLOAD = "premium_sub"
 MACROS_PAYLOAD = "premium_macros_sub"   # подписка Premium+КБЖУ
@@ -566,7 +572,7 @@ async def promo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def terms_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lang = await _lang(update.effective_user.id)
     await update.message.reply_text(
-        t("terms_text", lang, days=config.SUBSCRIPTION_DAYS, support=config.SUPPORT_CONTACT),
+        t("terms_text", lang, days=config.SUBSCRIPTION_DAYS, support=_md(config.SUPPORT_CONTACT)),
         parse_mode="Markdown")
 
 
@@ -608,4 +614,4 @@ async def addpromo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def paysupport_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lang = await _lang(update.effective_user.id)
     await update.message.reply_text(
-        t("paysupport_text", lang, support=config.SUPPORT_CONTACT), parse_mode="Markdown")
+        t("paysupport_text", lang, support=_md(config.SUPPORT_CONTACT)), parse_mode="Markdown")

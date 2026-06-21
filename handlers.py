@@ -356,7 +356,23 @@ async def _log_and_reply(update, context, calories: int, item: str, result: dict
     await update.effective_message.reply_text(
         msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id, backdated, lang))
     await _maybe_advice(update, user, day, total, goal)
-    await _maybe_referral_nudge(update, context, user)
+    # на 10-й записи — разовое предложение опроса; в остальные кратные 5 — реферальный нудж
+    if not await _maybe_survey_offer(update, context, user):
+        await _maybe_referral_nudge(update, context, user)
+
+
+async def _maybe_survey_offer(update, context, user) -> bool:
+    """Бесплатным юзерам один раз (на 10-й записи) предлагаем пройти опрос за награду."""
+    if payments.user_plan(user) != "free":
+        return False
+    if await db.has_survey(user["user_id"]):
+        return False
+    if await db.count_entries(user["user_id"]) != 10:
+        return False
+    await update.effective_message.reply_text(
+        t("survey_offer", user["lang"]), parse_mode="Markdown",
+        reply_markup=kb.survey_offer_kb(user["lang"]))
+    return True
 
 
 async def _maybe_referral_nudge(update, context, user):

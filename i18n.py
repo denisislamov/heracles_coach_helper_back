@@ -356,6 +356,9 @@ _STR = {
                          "За честный ответ дарим *3 дня Premium+КБЖУ* 🎁"),
         "survey_thanks": "🎉 Спасибо за ответ! Начислили *3 дня Premium+КБЖУ*. Загляни в меню — всё уже доступно.",
         "survey_already": "Ты уже проходил опрос — спасибо! 🙌 Награда выдаётся один раз.",
+        "survey_offer": ("📝 Ты уже освоился в Жиромере! Поделись мнением одним сообщением — и получи "
+                         "*3 дня Premium+КБЖУ* в подарок 🎁"),
+        "survey_offer_btn": "Пройти опрос →",
         "ver_changes": "Последние изменения:",
         "manual_item": "ручной ввод",
         "photo_item_default": "блюдо с фото",
@@ -682,6 +685,9 @@ _STR = {
                          "For an honest answer we'll gift you *3 days of Premium+Macros* 🎁"),
         "survey_thanks": "🎉 Thanks! We've added *3 days of Premium+Macros*. Open the menu — it's all unlocked.",
         "survey_already": "You've already taken the survey — thank you! 🙌 The reward is one-time.",
+        "survey_offer": ("📝 You've settled into Zhiromer! Share your thoughts in one message and get "
+                         "*3 days of Premium+Macros* as a gift 🎁"),
+        "survey_offer_btn": "Take the survey →",
         "ver_changes": "Latest changes:",
         "manual_item": "manual entry",
         "photo_item_default": "dish from photo",

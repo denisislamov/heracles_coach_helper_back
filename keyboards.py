@@ -64,6 +64,10 @@ def extras_menu(lang: str = "ru") -> InlineKeyboardMarkup:
     ])
 
 
+def survey_offer_kb(lang: str = "ru") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton(t("survey_offer_btn", lang), callback_data="survey")]])
+
+
 def profile_menu(lang: str = "ru") -> InlineKeyboardMarkup:
     """Кнопки под просмотром профиля — правка цели/режима/данных."""
     return InlineKeyboardMarkup([

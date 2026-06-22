@@ -25,7 +25,9 @@ _RULES = (
     "• оцени массу порции в граммах, опираясь на тарелку, столовые приборы и обычные "
     "размеры порций;\n"
     "• считай для обычного приготовления, не предполагай «диетическое» без явных причин;\n"
-    "• при неопределённости бери середину разумного диапазона.\n"
+    "• при неопределённости бери середину разумного диапазона;\n"
+    "• ОБЯЗАТЕЛЬНО: итоговые calories (и protein_g/fat_g/carb_g) = сумме значений по items. "
+    "Сначала оцени каждое блюдо, затем сложи — итог не должен отличаться от суммы позиций.\n"
 )
 
 # Схема ответа без макросов и с макросами (поля Б/Ж/У встроены прямо в схему!).
@@ -106,20 +108,24 @@ async def estimate_food(image_bytes: Optional[bytes] = None,
         temperature=0.2,
     )
     data = json.loads(resp.choices[0].message.content)
+
+    def _num(v):
+        try:
+            return int(round(float(v or 0)))
+        except (TypeError, ValueError):
+            return 0
+
     # нормализация
-    data["calories"] = int(round(float(data.get("calories", 0))))
     data.setdefault("items", [])
     data.setdefault("note", "")
+    items = data["items"]
+    # калории и макросы итога = сумма по блюдам (если позиции есть) — иначе итог модели.
+    # Так разбивка всегда сходится с итогом приёма.
+    items_cal = sum(_num(it.get("calories")) for it in items)
+    data["calories"] = items_cal if items_cal > 0 else _num(data.get("calories"))
     if include_macros:
-        items = data.get("items") or []
         for key in ("protein_g", "fat_g", "carb_g"):
-            def _num(v):
-                try:
-                    return int(round(float(v or 0)))
-                except (TypeError, ValueError):
-                    return 0
             items_sum = sum(_num(it.get(key)) for it in items)
-            # берём сумму по позициям, если она есть; иначе — итог верхнего уровня
             data[key] = items_sum if items_sum > 0 else _num(data.get(key))
     return data
 

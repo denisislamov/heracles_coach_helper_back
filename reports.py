@@ -41,6 +41,38 @@ def _entry_dishes(entry) -> list:
         return []
 
 
+def dishes_table(dishes, lang="ru") -> str:
+    """Моноширинная таблица по блюдам (в код-блоке).
+
+    Premium+КБЖУ (есть макросы): Блюдо · порция · ккал · Б · Ж · У.
+    Остальные: компактная Блюдо · ккал.
+    """
+    if not dishes:
+        return ""
+    full = any(d.get("p") is not None for d in dishes)   # данные КБЖУ есть только у Premium+КБЖУ
+    if full:
+        header = ["Dish", "g", "kcal", "P", "F", "C"] if lang == "en" else ["Блюдо", "г", "ккал", "Б", "Ж", "У"]
+    else:
+        header = ["Dish", "kcal"] if lang == "en" else ["Блюдо", "ккал"]
+    rows = []
+    for d in dishes:
+        if full:
+            r = [(d.get("n") or "—")[:16], str(d.get("g") or "—"), str(d.get("k") or 0),
+                 str(d.get("p") or 0), str(d.get("f") or 0), str(d.get("c") or 0)]
+        else:
+            r = [(d.get("n") or "—")[:20], str(d.get("k") or 0)]
+        rows.append(r)
+    cols = list(zip(*([header] + rows)))
+    w = [max(len(x) for x in col) for col in cols]
+
+    def fmt(r):
+        cells = [r[0].ljust(w[0])] + [r[i].rjust(w[i]) for i in range(1, len(r))]
+        return " ".join(cells)
+
+    body = "\n".join([fmt(header)] + [fmt(r) for r in rows])
+    return "```\n" + body + "\n```"
+
+
 def format_daily(user, day, entries) -> str:
     """Текст дневного отчёта по уже загруженным записям (с нумерацией)."""
     total = sum(e["calories"] for e in entries)
@@ -55,15 +87,10 @@ def format_daily(user, day, entries) -> str:
         for i, e in enumerate(entries, 1):
             name = e["item"] or "—"
             lines.append(f"{i}. {name} — {e['calories']} ккал")
-            # декомпозиция по блюдам, если у приёма сохранена разбивка
-            for dish in _entry_dishes(e):
-                dn = dish.get("n") or "—"
-                dk = dish.get("k") or 0
-                grams = f" ({dish['g']} г)" if dish.get("g") else ""
-                macro = ""
-                if dish.get("p") is not None and (dish.get("p") or dish.get("f") or dish.get("c")):
-                    macro = f" · Б{dish['p']} Ж{dish['f']} У{dish['c']}"
-                lines.append(f"    • {dn}{grams} — {dk} ккал{macro}")
+            # декомпозиция по блюдам — моноширинной таблицей КБЖУ, если разбивка сохранена
+            dishes = _entry_dishes(e)
+            if dishes:
+                lines.append(dishes_table(dishes, lang))
     else:
         lines.append(t("no_records", lang))
     lines.append("")

@@ -352,13 +352,16 @@ async def get_entry(entry_id: int, user_id: int) -> Optional[asyncpg.Record]:
             "SELECT * FROM entries WHERE id=$1 AND user_id=$2", entry_id, user_id)
 
 
-async def update_entry(entry_id: int, user_id: int, calories: int, item: str) -> bool:
-    """Изменить калории/название записи. True — если запись найдена и обновлена."""
+async def update_entry(entry_id: int, user_id: int, calories: int, item: str,
+                       protein_g: int = None, fat_g: int = None, carb_g: int = None,
+                       items_json: str = None) -> bool:
+    """Изменить запись: калории/название и (опц.) макросы + разбивку по блюдам."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
-            """UPDATE entries SET calories=$3, item=$4, items_json=NULL
+            """UPDATE entries SET calories=$3, item=$4, protein_g=$5, fat_g=$6,
+                      carb_g=$7, items_json=$8
                WHERE id=$1 AND user_id=$2 RETURNING id""",
-            entry_id, user_id, calories, item)
+            entry_id, user_id, calories, item, protein_g, fat_g, carb_g, items_json)
         return row is not None
 
 

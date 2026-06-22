@@ -333,7 +333,9 @@ _STR = {
         "entry_deleted": "🗑 Запись удалена.",
         "entry_gone": "🗑 Запись уже была удалена.",
         "entry_missing": "Эта запись уже удалена.",
-        "fix_prompt": "✏️ Правлю «{item}» ({cal} ккал).\nПришли *правильное число калорий* или *уточни блюдо текстом* — пересчитаю без списания лимита.",
+        "fix_prompt": ("✏️ Правлю «{item}» ({cal} ккал).\nПришли *правильное число калорий* "
+                       "или *опиши словами, что не так* (напр.: «было 2 порции», «без масла», "
+                       "«это была не курица, а индейка») — пересчитаю без списания лимита."),
         "fix_not_found": "Не нашёл запись для правки — возможно, она удалена.",
         "fix_recalc_fail": "Не получилось пересчитать 😕 Пришли правильное число калорий.",
         "promo_prompt": "🎟 Пришли промокод одним сообщением:",
@@ -678,7 +680,9 @@ _STR = {
         "entry_deleted": "🗑 Entry deleted.",
         "entry_gone": "🗑 Entry was already deleted.",
         "entry_missing": "This entry was already deleted.",
-        "fix_prompt": "✏️ Editing «{item}» ({cal} kcal).\nSend the *correct calorie number* or *clarify the dish in text* — I'll recalc without using your limit.",
+        "fix_prompt": ("✏️ Editing «{item}» ({cal} kcal).\nSend the *correct calorie number* "
+                       "or *describe what's wrong* (e.g. “it was 2 portions”, “no oil”, "
+                       "“it was turkey, not chicken”) — I'll recalc without using your limit."),
         "fix_not_found": "Couldn't find the entry — it may have been deleted.",
         "fix_recalc_fail": "Couldn't recalc 😕 Send the correct calorie number.",
         "promo_prompt": "🎟 Send your promo code in one message:",

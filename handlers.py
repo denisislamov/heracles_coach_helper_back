@@ -332,6 +332,23 @@ async def _maybe_advice(update, user, day, total, goal):
         pass
 
 
+def _items_json(result: dict, macros_on: bool):
+    """Из результата ИИ собрать компактную разбивку по блюдам (если их >=2).
+
+    Возвращает (json_str|None, dishes_list) — dishes для таблицы тут же.
+    """
+    items = (result or {}).get("items") or []
+    if len(items) < 2:
+        return None, []
+    dishes = []
+    for it in items:
+        row = {"n": (it.get("name") or "")[:40], "k": _i(it.get("calories")), "g": _i(it.get("grams"))}
+        if macros_on:
+            row.update(p=_i(it.get("protein_g")), f=_i(it.get("fat_g")), c=_i(it.get("carb_g")))
+        dishes.append(row)
+    return json.dumps(dishes, ensure_ascii=False), dishes
+
+
 async def _log_and_reply(update, context, calories: int, item: str, result: dict = None):
     user = await db.get_user(update.effective_user.id)
     lang = user["lang"]
@@ -341,18 +358,7 @@ async def _log_and_reply(update, context, calories: int, item: str, result: dict
     macros_on = payments.macros_enabled(user)
     if result and macros_on:
         p, f, c = result.get("protein_g"), result.get("fat_g"), result.get("carb_g")
-    # разбивка по блюдам (если в приёме несколько позиций) — для декомпозиции в отчёте
-    items_json = None
-    items = (result or {}).get("items") or []
-    if len(items) >= 2:
-        slim = []
-        for it in items:
-            row = {"n": (it.get("name") or "")[:40], "k": _i(it.get("calories")),
-                   "g": _i(it.get("grams"))}
-            if macros_on:
-                row.update(p=_i(it.get("protein_g")), f=_i(it.get("fat_g")), c=_i(it.get("carb_g")))
-            slim.append(row)
-        items_json = json.dumps(slim, ensure_ascii=False)
+    items_json, dishes = _items_json(result, macros_on)
     entry_id = await db.add_entry(user["user_id"], calories, item, day, p, f, c, items_json)
     total = await db.day_total(user["user_id"], day)
     goal = user["goal"] or 0
@@ -366,6 +372,8 @@ async def _log_and_reply(update, context, calories: int, item: str, result: dict
     if p is not None and (p or f or c):
         head += f"  (Б {p} · Ж {f} · У {c} г)"
     msg = head + "\n" + _progress_line(total, goal, lang, label) + await _macro_progress_line(user, day)
+    if dishes:  # таблица КБЖУ по блюдам прямо в подтверждении
+        msg += "\n\n" + reports.dishes_table(dishes, lang)
     await update.effective_message.reply_text(
         msg, parse_mode="Markdown", reply_markup=kb.entry_actions(entry_id, backdated, lang))
     await _maybe_advice(update, user, day, total, goal)
@@ -436,19 +444,26 @@ async def _handle_fix_input(update, context, text: str):
         await _reply_after_edit(update, user, entry_id, entry["item"], new_cal, entry["entry_date"])
         return
 
-    # вариант 2: уточнение текстом — пересчёт через ИИ (лимит НЕ списываем, это правка)
+    # вариант 2: уточнение текстом — пересчёт через ИИ с учётом исходного блюда (лимит НЕ списываем)
+    macros_on = payments.macros_enabled(user)
+    caption = (f"Это правка ранее записанного приёма. Было: «{entry['item']}» — "
+               f"{entry['calories']} ккал. Пользователь уточняет, что было не так: {text}. "
+               f"Пересчитай калории{' и КБЖУ' if macros_on else ''} с учётом уточнения.")
     await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
     try:
-        result = await ai.estimate_food(caption=text, include_macros=payments.macros_enabled(user),
-                                        lang=lang)
+        result = await ai.estimate_food(caption=caption, include_macros=macros_on, lang=lang)
     except Exception as e:
         log.exception("Ошибка пересчёта правки: %s", e)
         await update.message.reply_text(t("fix_recalc_fail", lang))
         context.user_data["awaiting"] = "fix"
         context.user_data["fix_entry_id"] = entry_id
         return
-    item = ", ".join(i.get("name", "") for i in result.get("items", [])) or text[:50]
-    await db.update_entry(entry_id, uid, result["calories"], item)
+    item = ", ".join(i.get("name", "") for i in result.get("items", [])) or entry["item"]
+    p = f = c = None
+    if macros_on:
+        p, f, c = result.get("protein_g"), result.get("fat_g"), result.get("carb_g")
+    items_json, _dishes = _items_json(result, macros_on)
+    await db.update_entry(entry_id, uid, result["calories"], item, p, f, c, items_json)
     await _reply_after_edit(update, user, entry_id, item, result["calories"], entry["entry_date"])
     note = result.get("note", "")
     if note:

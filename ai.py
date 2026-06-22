@@ -285,6 +285,30 @@ async def generate_meal_plan(cal: int, protein: int, fat: int, carb: int,
         return None
 
 
+async def is_day_question(text: str) -> bool:
+    """Спрашивает ли пользователь про свой дневник/итог за день, а не присылает еду.
+
+    Дешёвый классификатор (gpt-4o-mini). Вызывать только для нераспознанной как еда фразы.
+    """
+    try:
+        resp = await _client.chat.completions.create(
+            model=config.OPENAI_MODEL_FREE,
+            messages=[
+                {"role": "system", "content": (
+                    "Пользователь пишет боту-дневнику питания. Определи намерение фразы. "
+                    "Ответь одним словом: DAY — если он спрашивает, что он ел сегодня, "
+                    "просит разбивку по блюдам, итог калорий/КБЖУ за день, свой дневник. "
+                    "OTHER — во всех остальных случаях (это еда, число, болтовня, прочее).")},
+                {"role": "user", "content": text[:300]},
+            ],
+            max_tokens=3,
+            temperature=0,
+        )
+        return "day" in (resp.choices[0].message.content or "").strip().lower()
+    except Exception:
+        return False
+
+
 async def diet_advice(goal: int, consumed: int, items_today: list,
                       goal_mode: str = "lose", macros: dict = None,
                       macro_goals: dict = None, lang: str = "ru") -> str:

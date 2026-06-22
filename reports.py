@@ -7,6 +7,7 @@
 Это избавляет от зависимости от внутренней нумерации дней в JobQueue.
 """
 import datetime as dt
+import json
 
 import pytz
 from telegram.error import Forbidden
@@ -28,6 +29,18 @@ def _progress_bar(consumed: int, goal: int, width: int = 10) -> str:
     return "▓" * filled + "░" * (width - filled)
 
 
+def _entry_dishes(entry) -> list:
+    """Разбивка приёма по блюдам из items_json (или []), безопасно."""
+    raw = entry["items_json"] if "items_json" in entry.keys() else None
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
 def format_daily(user, day, entries) -> str:
     """Текст дневного отчёта по уже загруженным записям (с нумерацией)."""
     total = sum(e["calories"] for e in entries)
@@ -42,6 +55,14 @@ def format_daily(user, day, entries) -> str:
         for i, e in enumerate(entries, 1):
             name = e["item"] or "—"
             lines.append(f"{i}. {name} — {e['calories']} ккал")
+            # декомпозиция по блюдам, если у приёма сохранена разбивка
+            for dish in _entry_dishes(e):
+                dn = dish.get("n") or "—"
+                dk = dish.get("k") or 0
+                macro = ""
+                if dish.get("p") is not None and (dish.get("p") or dish.get("f") or dish.get("c")):
+                    macro = f" · Б{dish['p']} Ж{dish['f']} У{dish['c']}"
+                lines.append(f"    • {dn} — {dk} ккал{macro}")
     else:
         lines.append(t("no_records", lang))
     lines.append("")

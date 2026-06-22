@@ -112,6 +112,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS reminder_interval INTEGER NOT NULL DE
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS protein_g INTEGER;
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS fat_g     INTEGER;
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS carb_g    INTEGER;
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS items_json TEXT;  -- разбивка по блюдам [{n,k,p,f,c}]
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan       TEXT NOT NULL DEFAULT 'free';   -- free|premium|premium_plus
 ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_mode  TEXT NOT NULL DEFAULT 'lose';   -- lose|maintain|gain
 ALTER TABLE users ADD COLUMN IF NOT EXISTS sex        TEXT;
@@ -292,13 +293,14 @@ async def update_settings(user_id: int, **fields) -> None:
 # ----------------------------------------------------------------- приёмы пищи
 
 async def add_entry(user_id: int, calories: int, item: str, entry_date: date,
-                    protein_g: int = None, fat_g: int = None, carb_g: int = None) -> int:
-    """Добавить приём пищи (с опциональными макросами), вернуть id записи."""
+                    protein_g: int = None, fat_g: int = None, carb_g: int = None,
+                    items_json: str = None) -> int:
+    """Добавить приём пищи (с опциональными макросами и разбивкой по блюдам), вернуть id."""
     async with _pool.acquire() as conn:
         return await conn.fetchval(
-            """INSERT INTO entries (user_id, entry_date, calories, item, protein_g, fat_g, carb_g)
-               VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""",
-            user_id, entry_date, calories, item, protein_g, fat_g, carb_g,
+            """INSERT INTO entries (user_id, entry_date, calories, item, protein_g, fat_g, carb_g, items_json)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id""",
+            user_id, entry_date, calories, item, protein_g, fat_g, carb_g, items_json,
         )
 
 
@@ -354,7 +356,7 @@ async def update_entry(entry_id: int, user_id: int, calories: int, item: str) ->
     """Изменить калории/название записи. True — если запись найдена и обновлена."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
-            """UPDATE entries SET calories=$3, item=$4
+            """UPDATE entries SET calories=$3, item=$4, items_json=NULL
                WHERE id=$1 AND user_id=$2 RETURNING id""",
             entry_id, user_id, calories, item)
         return row is not None
@@ -381,7 +383,7 @@ async def day_total(user_id: int, entry_date: date) -> int:
 async def day_entries(user_id: int, entry_date: date) -> list:
     async with _pool.acquire() as conn:
         return await conn.fetch(
-            """SELECT id, item, calories, protein_g, fat_g, carb_g, created_at FROM entries
+            """SELECT id, item, calories, protein_g, fat_g, carb_g, items_json, created_at FROM entries
                WHERE user_id=$1 AND entry_date=$2 ORDER BY created_at""",
             user_id, entry_date,
         )

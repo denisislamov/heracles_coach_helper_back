@@ -338,9 +338,21 @@ async def _log_and_reply(update, context, calories: int, item: str, result: dict
     day = _active_date(context, user)
     backdated = day != _today(user)
     p = f = c = None
-    if result and payments.macros_enabled(user):
+    macros_on = payments.macros_enabled(user)
+    if result and macros_on:
         p, f, c = result.get("protein_g"), result.get("fat_g"), result.get("carb_g")
-    entry_id = await db.add_entry(user["user_id"], calories, item, day, p, f, c)
+    # разбивка по блюдам (если в приёме несколько позиций) — для декомпозиции в отчёте
+    items_json = None
+    items = (result or {}).get("items") or []
+    if len(items) >= 2:
+        slim = []
+        for it in items:
+            row = {"n": (it.get("name") or "")[:40], "k": _i(it.get("calories"))}
+            if macros_on:
+                row.update(p=_i(it.get("protein_g")), f=_i(it.get("fat_g")), c=_i(it.get("carb_g")))
+            slim.append(row)
+        items_json = json.dumps(slim, ensure_ascii=False)
+    entry_id = await db.add_entry(user["user_id"], calories, item, day, p, f, c, items_json)
     total = await db.day_total(user["user_id"], day)
     goal = user["goal"] or 0
 
@@ -615,17 +627,22 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # вопрос про дневной итог/разбивку — показываем реальный дневной отчёт, а не оцениваем как еду
     if _is_day_query(text):
-        user = await db.get_user(update.effective_user.id)
-        day = _today(user)
-        entries = await db.day_entries(user["user_id"], day)
-        report = reports.format_daily(user, day, entries)
-        await update.message.reply_text(
-            report, parse_mode="Markdown",
-            reply_markup=kb.day_manage(entries, False, ulang))
+        await _send_day_report(update)
         return
 
     # иначе — описание блюда, оцениваем через ИИ (под лимитом)
     await _analyze_food_text(update, context, text)
+
+
+async def _send_day_report(update) -> None:
+    """Отправить реальный дневной отчёт (как кнопка «Сегодня»), новым сообщением."""
+    user = await db.get_user(update.effective_user.id)
+    day = _today(user)
+    entries = await db.day_entries(user["user_id"], day)
+    report = reports.format_daily(user, day, entries)
+    await update.effective_message.reply_text(
+        report, parse_mode="Markdown",
+        reply_markup=kb.day_manage(entries, False, user["lang"]))
 
 
 async def _analyze_food_text(update, context, text: str):
@@ -641,7 +658,11 @@ async def _analyze_food_text(update, context, text: str):
         return
     # не еда (вопрос/болтовня): 0 ккал и без позиций — не записываем и не тратим лимит
     if int(result.get("calories") or 0) <= 0 and not result.get("items"):
-        await update.effective_message.reply_text(t("not_food", lang))
+        # умный разбор: возможно, это вопрос про дневник — тогда покажем реальный отчёт
+        if await ai.is_day_question(text):
+            await _send_day_report(update)
+        else:
+            await update.effective_message.reply_text(t("not_food", lang))
         return
     await payments.consume(update.effective_user.id, mode, today)
     item = ", ".join(i.get("name", "") for i in result.get("items", [])) or text[:50]

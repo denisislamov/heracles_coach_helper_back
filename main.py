@@ -154,11 +154,14 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("delkey", payments.delkey_cmd))
     app.add_handler(CommandHandler("terms", payments.terms_cmd))
     app.add_handler(CommandHandler("paysupport", payments.paysupport_cmd))
-    app.add_handler(MessageHandler(filters.PHOTO, handlers.on_photo))
-    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handlers.on_voice))
-    app.add_handler(MessageHandler(filters.VIDEO, handlers.on_video))
-    app.add_handler(MessageHandler(filters.Document.ALL, handlers.on_document))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.on_text))
+    # filters.UpdateType.MESSAGE — только новые сообщения, без edited_message
+    # (правки приходят без update.message и роняли хендлеры).
+    fresh = filters.UpdateType.MESSAGE
+    app.add_handler(MessageHandler(filters.PHOTO & fresh, handlers.on_photo))
+    app.add_handler(MessageHandler((filters.VOICE | filters.AUDIO) & fresh, handlers.on_voice))
+    app.add_handler(MessageHandler(filters.VIDEO & fresh, handlers.on_video))
+    app.add_handler(MessageHandler(filters.Document.ALL & fresh, handlers.on_document))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & fresh, handlers.on_text))
     # Платежи Telegram Stars
     app.add_handler(PreCheckoutQueryHandler(payments.on_pre_checkout))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, payments.on_successful_payment))

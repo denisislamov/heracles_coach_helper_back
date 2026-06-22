@@ -494,7 +494,11 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # -------------------------------------------------------------- приём текста
 
 async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (update.message.text or "").strip()
+    # отредактированные сообщения приходят без update.message (есть edited_message) —
+    # исходное уже обработано при отправке, правки игнорируем (и не падаем).
+    if update.message is None or update.message.text is None:
+        return
+    text = update.message.text.strip()
     await db.ensure_user(update.effective_user.id, update.effective_user.username)
 
     # ожидаем ввод цели / часа и т.п.

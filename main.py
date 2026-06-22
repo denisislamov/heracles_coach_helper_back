@@ -4,7 +4,7 @@ import logging
 import traceback
 
 from telegram import BotCommand, Update
-from telegram.error import Forbidden
+from telegram.error import BadRequest, Forbidden
 from telegram.ext import (Application, CommandHandler, MessageHandler,
                           CallbackQueryHandler, PreCheckoutQueryHandler, filters)
 
@@ -82,6 +82,12 @@ async def _maybe_announce_changelog(application: Application) -> None:
 
 async def _on_error(update: object, context) -> None:
     """Глобальный перехват ошибок: лог + уведомление админу + мягкий ответ юзеру."""
+    err = context.error
+    # Безобидные случаи: повторный тап по кнопке (контент тот же) — игнорируем тихо.
+    if isinstance(err, BadRequest) and "not modified" in str(err).lower():
+        return
+    if isinstance(err, Forbidden):
+        return  # пользователь заблокировал бота — уже помечается в местах рассылки
     log.exception("Необработанная ошибка", exc_info=context.error)
     tb = "".join(traceback.format_exception(
         type(context.error), context.error, getattr(context.error, "__traceback__", None)))

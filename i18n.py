@@ -352,6 +352,7 @@ _STR = {
         "text_fail": "Не получилось оценить 😕 Попробуй иначе или пришли фото.",
         "not_food": ("Я считаю калории по присланной *еде* (фото, описание, голос или число). "
                      "А разбивку по блюдам за сегодня с реальными калориями смотри в /menu → 📊 Сегодня."),
+        "suggest_section": "Похоже, тебе нужен этот раздел 👇",
         "byok_fallback": "⚠️ Твой ключ OpenAI не сработал — считаю на общем. Проверь ключ или /delkey.",
         "premium_until_short": "⭐ Premium активен до *{date}*.",
         "video_no": "Видео я пока не распознаю. Пришли фото блюда 📷",
@@ -696,6 +697,7 @@ _STR = {
         "text_fail": "Couldn't estimate 😕 Try differently or send a photo.",
         "not_food": ("I count calories from *food* you send (photo, description, voice or a number). "
                      "For today's per-dish breakdown with real calories, see /menu → 📊 Today."),
+        "suggest_section": "Looks like you need this section 👇",
         "byok_fallback": "⚠️ Your OpenAI key failed — using the shared one. Check the key or /delkey.",
         "premium_until_short": "⭐ Premium active until *{date}*.",
         "video_no": "I can't analyze video yet. Send a food photo 📷",

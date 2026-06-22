@@ -300,28 +300,44 @@ async def generate_meal_plan(cal: int, protein: int, fat: int, carb: int,
         return None
 
 
-async def is_day_question(text: str) -> bool:
-    """Спрашивает ли пользователь про свой дневник/итог за день, а не присылает еду.
+_INTENTS = ("day", "mealplan", "diet", "fasting", "profile", "premium",
+            "reminders", "invite", "other")
 
-    Дешёвый классификатор (gpt-4o-mini). Вызывать только для нераспознанной как еда фразы.
+
+async def classify_intent(text: str) -> str:
+    """Намерение нераспознанной как еда фразы → раздел бота (дешёвый классификатор).
+
+    Возвращает одно из: day | mealplan | diet | fasting | profile | premium |
+    reminders | invite | other. Вызывать ТОЛЬКО для фраз, не похожих на еду.
     """
     try:
         resp = await _client.chat.completions.create(
             model=config.OPENAI_MODEL_FREE,
             messages=[
                 {"role": "system", "content": (
-                    "Пользователь пишет боту-дневнику питания. Определи намерение фразы. "
-                    "Ответь одним словом: DAY — если он спрашивает, что он ел сегодня, "
-                    "просит разбивку по блюдам, итог калорий/КБЖУ за день, свой дневник. "
-                    "OTHER — во всех остальных случаях (это еда, число, болтовня, прочее).")},
+                    "Это бот-дневник питания (фото/описание еды → калории). Пользователи часто "
+                    "пишут ему как обычному ИИ. Определи, какой раздел им нужен, и ответь ОДНИМ словом:\n"
+                    "day — спрашивает, что ел / итог / разбивку за день;\n"
+                    "mealplan — просит план питания, меню на неделю, что приготовить, рацион;\n"
+                    "diet — просит подобрать диету / какую диету выбрать;\n"
+                    "fasting — про интервальное голодание / фастинг;\n"
+                    "profile — про свой профиль, цель, вес/рост, изменить цель;\n"
+                    "premium — про подписку, оплату, безлимит, тарифы;\n"
+                    "reminders — про напоминания/уведомления;\n"
+                    "invite — пригласить друга / реферальная программа;\n"
+                    "other — всё остальное (включая собственно еду и болтовню).")},
                 {"role": "user", "content": text[:300]},
             ],
-            max_tokens=3,
+            max_tokens=4,
             temperature=0,
         )
-        return "day" in (resp.choices[0].message.content or "").strip().lower()
+        word = (resp.choices[0].message.content or "").strip().lower()
+        for it in _INTENTS:
+            if it in word:
+                return it
+        return "other"
     except Exception:
-        return False
+        return "other"
 
 
 async def diet_advice(goal: int, consumed: int, items_today: list,

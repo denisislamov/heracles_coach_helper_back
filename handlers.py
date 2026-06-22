@@ -521,6 +521,44 @@ def _is_day_query(text: str) -> bool:
     return any(h in low for h in _DAY_QUERY_HINTS)
 
 
+# Намёки на нужный раздел (быстрый бесплатный детектор; первое совпадение).
+_SECTION_HINTS = {
+    "mealplan": ("план пита", "план еды", "меню на недел", "меню на день", "что приготов",
+                 "рацион", "составь план", "meal plan", "what to eat", "weekly menu"),
+    "diet": ("подбери диет", "кака диет", "какую диет", "диета для", "выбрать диет",
+             "моя диета", "нужна диета", "diet"),
+    "fasting": ("голодан", "фастинг", "интервальн", "16:8", "18:6", "окно еды",
+                "fasting", "intermittent"),
+    "profile": ("мой профиль", "покажи профиль", "мои данные", "сменить цель",
+                "измени цель", "изменить цель", "поменять цель", "my profile", "change goal"),
+    "premium": ("премиум", "premium", "подписк", "безлимит", "тариф", "subscription"),
+    "reminders": ("напомин", "уведомл", "reminder", "notif"),
+    "invite": ("пригласи друг", "реферал", "инвайт", "invite", "referral"),
+}
+
+
+def _suggest_section(text: str):
+    low = (text or "").lower()
+    for sec, hints in _SECTION_HINTS.items():
+        if any(h in low for h in hints):
+            return sec
+    return None
+
+
+async def _route_intent(update, intent: str, lang: str) -> bool:
+    """Показать нужный раздел/отчёт по намерению. True — если что-то предложили."""
+    if intent == "day":
+        await _send_day_report(update)
+        return True
+    if intent == "premium" and not payments.monetization_enabled():
+        return False
+    if intent in kb.SECTION_BUTTON:
+        await update.effective_message.reply_text(
+            t("suggest_section", lang), reply_markup=kb.section_suggest_kb(intent, lang))
+        return True
+    return False
+
+
 async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # отредактированные сообщения приходят без update.message (есть edited_message) —
     # исходное уже обработано при отправке, правки игнорируем (и не падаем).
@@ -631,6 +669,11 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _send_day_report(update)
         return
 
+    # запрос функции («скинь план еды», «хочу диету», «напоминания»…) — предлагаем раздел
+    sec = _suggest_section(text)
+    if sec and await _route_intent(update, sec, ulang):
+        return
+
     # иначе — описание блюда, оцениваем через ИИ (под лимитом)
     await _analyze_food_text(update, context, text)
 
@@ -659,10 +702,9 @@ async def _analyze_food_text(update, context, text: str):
         return
     # не еда (вопрос/болтовня): 0 ккал и без позиций — не записываем и не тратим лимит
     if int(result.get("calories") or 0) <= 0 and not result.get("items"):
-        # умный разбор: возможно, это вопрос про дневник — тогда покажем реальный отчёт
-        if await ai.is_day_question(text):
-            await _send_day_report(update)
-        else:
+        # умный разбор намерения: дневник/план/диета/голодание/профиль/премиум/...
+        intent = await ai.classify_intent(text)
+        if not await _route_intent(update, intent, lang):
             await update.effective_message.reply_text(t("not_food", lang))
         return
     await payments.consume(update.effective_user.id, mode, today)

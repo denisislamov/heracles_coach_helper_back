@@ -64,6 +64,23 @@ def extras_menu(lang: str = "ru") -> InlineKeyboardMarkup:
     ])
 
 
+# Раздел → (ключ кнопки i18n, callback). Для подсказки «тебе нужен этот раздел».
+SECTION_BUTTON = {
+    "mealplan": ("btn_mealplan", "mealplan"),
+    "diet": ("btn_diet", "diet"),
+    "fasting": ("btn_fasting", "fasting"),
+    "profile": ("btn_profile", "profile"),
+    "premium": ("btn_premium", "premium"),
+    "reminders": ("btn_settings", "settings"),
+    "invite": ("btn_invite", "invite"),
+}
+
+
+def section_suggest_kb(section: str, lang: str = "ru") -> InlineKeyboardMarkup:
+    label_key, cb = SECTION_BUTTON.get(section, ("btn_back_menu", "menu"))
+    return InlineKeyboardMarkup([[InlineKeyboardButton(t(label_key, lang), callback_data=cb)]])
+
+
 def survey_offer_kb(lang: str = "ru") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[InlineKeyboardButton(t("survey_offer_btn", lang), callback_data="survey")]])
 

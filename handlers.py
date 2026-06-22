@@ -542,6 +542,24 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _generate_mealplan(update, context)
         return
 
+    if awaiting == "meal_times":
+        context.user_data.pop("awaiting", None)
+        uid = update.effective_user.id
+        if text.strip().lower() in ("авто", "auto", "-", "—"):
+            await db.update_settings(uid, meal_times=None)
+            await reminders.schedule_user(context.application, await db.get_user(uid))
+            await update.message.reply_text(t("meal_times_auto", ulang))
+            return
+        hours = reminders.parse_meal_times(text)
+        if not hours:
+            await update.message.reply_text(t("meal_times_bad", ulang), parse_mode="Markdown")
+            return
+        await db.update_settings(uid, meal_times=",".join(str(h) for h in hours))
+        await reminders.schedule_user(context.application, await db.get_user(uid))
+        await update.message.reply_text(
+            t("meal_times_set", ulang, v=", ".join(f"{h}:00" for h in hours)))
+        return
+
     if awaiting == "survey":
         context.user_data.pop("awaiting", None)
         uid = update.effective_user.id
@@ -1305,19 +1323,31 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- напоминания ---
     elif data == "rem_on":
         await db.update_settings(uid, reminders_on=True)
-        reminders.schedule_user(context.application, await db.get_user(uid))
+        await reminders.schedule_user(context.application, await db.get_user(uid))
         await q.edit_message_text(t("rem_done_on", lang))
     elif data == "rem_off":
         await db.update_settings(uid, reminders_on=False)
-        reminders.schedule_user(context.application, await db.get_user(uid))
+        await reminders.schedule_user(context.application, await db.get_user(uid))
         await q.edit_message_text(t("rem_done_off", lang))
     elif data == "toggle_rem":
         await db.update_settings(uid, reminders_on=not user["reminders_on"])
-        reminders.schedule_user(context.application, await db.get_user(uid))
+        await reminders.schedule_user(context.application, await db.get_user(uid))
         await _settings()
     elif data == "set_rem_int":
         await q.edit_message_text(t("rem_int_q", lang), reply_markup=kb.rem_interval_menu(lang))
     elif data.startswith("remint:"):
         await db.update_settings(uid, reminder_interval=int(data.split(":")[1]))
-        reminders.schedule_user(context.application, await db.get_user(uid))
+        await reminders.schedule_user(context.application, await db.get_user(uid))
         await _settings()
+    elif data == "rem_mode":
+        cur = (user["reminder_mode"] or "interval") if "reminder_mode" in user.keys() else "interval"
+        new_mode = "interval" if cur == "smart" else "smart"
+        await db.update_settings(uid, reminder_mode=new_mode)
+        u = await db.get_user(uid)
+        await reminders.schedule_user(context.application, u)
+        if new_mode == "smart":
+            await q.message.reply_text(t("smart_on_note", lang))
+        await _settings(u)
+    elif data == "set_meal_times":
+        context.user_data["awaiting"] = "meal_times"
+        await q.edit_message_text(t("meal_times_prompt", lang), parse_mode="Markdown")

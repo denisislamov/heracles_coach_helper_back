@@ -130,6 +130,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS sport        TEXT;  -- вид спо�
 ALTER TABLE users ADD COLUMN IF NOT EXISTS diet_pattern TEXT;  -- рекомендованный паттерн питания (mediterranean и т.п.)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS diet_text    TEXT;  -- текст рекомендации диеты (готовый к показу)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked      BOOLEAN NOT NULL DEFAULT FALSE;  -- заблокировал бота
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reminder_mode TEXT NOT NULL DEFAULT 'interval';  -- interval | smart
+ALTER TABLE users ADD COLUMN IF NOT EXISTS meal_times    TEXT;  -- ручные часы приёмов для умных напоминаний, напр. "8,13,19"
 
 -- Рефералы: кто кого привёл (один реферал на нового пользователя).
 CREATE TABLE IF NOT EXISTS referrals (
@@ -275,7 +277,8 @@ async def update_settings(user_id: int, **fields) -> None:
     """Обновить произвольные поля настроек: timezone, daily_hour, weekly_dow, daily_on, weekly_on."""
     allowed = {"timezone", "daily_hour", "weekly_dow", "daily_on", "weekly_on", "goal",
                "reminders_on", "reminder_interval", "goal_mode",
-               "protein_goal", "fat_goal", "carb_goal", "onboarded", "lang", "sport"}
+               "protein_goal", "fat_goal", "carb_goal", "onboarded", "lang", "sport",
+               "reminder_mode", "meal_times"}
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:
         return
@@ -317,6 +320,16 @@ async def count_entries(user_id: int) -> int:
     async with _pool.acquire() as conn:
         return int(await conn.fetchval(
             "SELECT count(*) FROM entries WHERE user_id=$1", user_id) or 0)
+
+
+async def recent_entry_times(user_id: int, days: int = 28) -> list:
+    """Времена (created_at, UTC) записей за последние N дней — для предсказания приёмов пищи."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT created_at FROM entries WHERE user_id=$1 "
+            "AND created_at >= now() - ($2 || ' days')::interval ORDER BY created_at",
+            user_id, str(days))
+        return [r["created_at"] for r in rows]
 
 
 async def day_macros(user_id: int, entry_date: date) -> dict:

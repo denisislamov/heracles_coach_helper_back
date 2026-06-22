@@ -193,6 +193,20 @@ GOAL_MODE_LABELS = {"lose": "Похудение", "maintain": "Поддержа�
 _MODE_KEY = {"lose": "m_lose", "maintain": "m_maintain", "gain": "m_gain"}
 
 
+def _reminder_rows(user, lang):
+    """Строки настроек напоминаний: режим + (интервал | время приёмов)."""
+    mode = (user["reminder_mode"] if "reminder_mode" in user.keys() else None) or "interval"
+    mode_v = t("rem_mode_smart" if mode == "smart" else "rem_mode_interval", lang)
+    rows = [[InlineKeyboardButton(t("s_rem_mode", lang, v=mode_v), callback_data="rem_mode")]]
+    if mode == "smart":
+        mt = (user["meal_times"] if "meal_times" in user.keys() else None) or t("rem_auto", lang)
+        rows.append([InlineKeyboardButton(t("s_meal_times", lang, v=mt), callback_data="set_meal_times")])
+    else:
+        rows.append([InlineKeyboardButton(t("s_every", lang, n=user['reminder_interval']),
+                                          callback_data="set_rem_int")])
+    return rows
+
+
 def settings_menu(user) -> InlineKeyboardMarkup:
     lang = user["lang"]
     on, off = t("on", lang), t("off", lang)
@@ -204,8 +218,8 @@ def settings_menu(user) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(t("s_tz", lang, v=tz_display(user['timezone'])), callback_data="set_tz")],
         [InlineKeyboardButton(t("s_daily", lang, v=on if user["daily_on"] else off), callback_data="toggle_daily"),
          InlineKeyboardButton(t("s_weekly", lang, v=on if user["weekly_on"] else off), callback_data="toggle_weekly")],
-        [InlineKeyboardButton(t("s_reminders", lang, v=on if user["reminders_on"] else off), callback_data="toggle_rem"),
-         InlineKeyboardButton(t("s_every", lang, n=user['reminder_interval']), callback_data="set_rem_int")],
+        [InlineKeyboardButton(t("s_reminders", lang, v=on if user["reminders_on"] else off), callback_data="toggle_rem")],
+        *_reminder_rows(user, lang),
         [InlineKeyboardButton(t("btn_lang", lang), callback_data="set_lang"),
          InlineKeyboardButton(t("btn_feedback", lang), callback_data="feedback")],
         [InlineKeyboardButton(t("s_reset", lang), callback_data="reset")],

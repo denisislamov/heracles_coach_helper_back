@@ -78,6 +78,34 @@ def test_fasting_helpers():
     assert early != late
 
 
+def test_parse_meal_times():
+    import reminders
+    assert reminders.parse_meal_times("8, 13, 19") == [8, 13, 19]
+    assert reminders.parse_meal_times("25, 7 ; 12:30, abc") == [7, 12]
+    assert reminders.parse_meal_times("") == []
+
+
+async def test_predict_meal_hours(monkeypatch):
+    import reminders, db
+    # синтетика: 12 дней, приёмы в 8, 13 и 19 часов (UTC-профиль)
+    base = dt.datetime(2026, 6, 1, tzinfo=dt.timezone.utc)
+    times = []
+    for d in range(12):
+        for h in (8, 13, 19):
+            times.append(base + dt.timedelta(days=d, hours=h))
+
+    async def fake_times(uid, days=28):
+        return times
+    monkeypatch.setattr(db, "recent_entry_times", fake_times)
+    hours = await reminders.predict_meal_hours({"user_id": 1, "timezone": "UTC"})
+    assert hours == [8, 13, 19]
+    # холодный старт: мало данных → пусто
+    async def few(uid, days=28):
+        return times[:3]
+    monkeypatch.setattr(db, "recent_entry_times", few)
+    assert await reminders.predict_meal_hours({"user_id": 1, "timezone": "UTC"}) == []
+
+
 def test_meal_plan_gating():
     now = dt.datetime.now(dt.timezone.utc)
     # монетизация включена: планы — любой активный Premium (premium или premium_plus)

@@ -1276,7 +1276,10 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["awaiting"] = "goal"
         await q.edit_message_text(t("ask_calories", lang))
     elif data == "goal_ok":
-        await q.edit_message_text(t("great", lang))
+        try:
+            await q.edit_message_text(t("great", lang))
+        except BadRequest:
+            pass  # двойной тап — сообщение уже изменено
         await _finish_goal_setup(update, context)
     elif data == "trust_default":
         u = await db.get_user(uid)

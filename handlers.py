@@ -493,6 +493,21 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------------------------------------------------- приём текста
 
+_DAY_QUERY_HINTS = (
+    "что я ел", "что ел", "что съел", "что ела", "что съела", "по блюдам", "разбивк",
+    "сколько калори", "сколько за день", "итог за день", "что у меня по кбжу",
+    "что по кбжу", "мои калори", "что сегодня съел", "сколько съел",
+    "what did i eat", "what i ate", "breakdown", "per dish", "calories today",
+    "today's calories", "my calories", "daily total", "what have i eaten",
+)
+
+
+def _is_day_query(text: str) -> bool:
+    """Похоже ли сообщение на вопрос «что я ел / разбивка / сколько калорий за день»."""
+    low = (text or "").lower()
+    return any(h in low for h in _DAY_QUERY_HINTS)
+
+
 async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # отредактированные сообщения приходят без update.message (есть edited_message) —
     # исходное уже обработано при отправке, правки игнорируем (и не падаем).
@@ -598,6 +613,17 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _log_and_reply(update, context, int(m.group(1)), t("manual_item", ulang))
         return
 
+    # вопрос про дневной итог/разбивку — показываем реальный дневной отчёт, а не оцениваем как еду
+    if _is_day_query(text):
+        user = await db.get_user(update.effective_user.id)
+        day = _today(user)
+        entries = await db.day_entries(user["user_id"], day)
+        report = reports.format_daily(user, day, entries)
+        await update.message.reply_text(
+            report, parse_mode="Markdown",
+            reply_markup=kb.day_manage(entries, False, ulang))
+        return
+
     # иначе — описание блюда, оцениваем через ИИ (под лимитом)
     await _analyze_food_text(update, context, text)
 
@@ -612,6 +638,10 @@ async def _analyze_food_text(update, context, text: str):
     result = await _run_estimate(update, user, mode, caption=text)
     if result is None:
         await update.effective_message.reply_text(t("text_fail", lang))
+        return
+    # не еда (вопрос/болтовня): 0 ккал и без позиций — не записываем и не тратим лимит
+    if int(result.get("calories") or 0) <= 0 and not result.get("items"):
+        await update.effective_message.reply_text(t("not_food", lang))
         return
     await payments.consume(update.effective_user.id, mode, today)
     item = ", ".join(i.get("name", "") for i in result.get("items", [])) or text[:50]

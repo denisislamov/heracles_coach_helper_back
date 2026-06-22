@@ -19,13 +19,13 @@ def _client_for(api_key: Optional[str]):
 
 _RULES = (
     "Ты — нутрициолог-ассистент, оцениваешь калорийность съеденного по фото и/или "
-    "описанию. Важно: люди и модели систематически ЗАНИЖАЮТ калории. Поэтому:\n"
+    "описанию. Дай РЕАЛИСТИЧНУЮ оценку (без систематического завышения и занижения):\n"
     "• учитывай скрытые калории: масло для жарки, сливочное масло, заправки, соусы, "
     "майонез, сахар, сливки, панировку, сироп;\n"
     "• оцени массу порции в граммах, опираясь на тарелку, столовые приборы и обычные "
-    "размеры порций; НЕ занижай порцию;\n"
+    "размеры порций;\n"
     "• считай для обычного приготовления, не предполагай «диетическое» без явных причин;\n"
-    "• при неопределённости выбирай оценку ближе к ВЕРХНЕЙ границе разумного диапазона.\n"
+    "• при неопределённости бери середину разумного диапазона.\n"
 )
 
 # Схема ответа без макросов и с макросами (поля Б/Ж/У встроены прямо в схему!).
@@ -47,10 +47,19 @@ _SCHEMA_MACROS = (
 
 _LANG_NAME = {"ru": "русском", "en": "English"}
 
+# Доп. правило только для ФОТО: лёгкий запас вверх лишь для явно жирной/калорийной еды.
+_PHOTO_FATTY_RULE = (
+    "\nЭто оценка по фото. Для большинства блюд давай реалистичную оценку без запаса. "
+    "Но если на фото ЯВНО жирная/калорийная еда (жарка в масле, фастфуд, обильные соусы/"
+    "майонез, много сыра, выпечка, сливочные блюда) — не занижай: бери верхнюю часть "
+    "разумного диапазона (порядка +5%), т.к. скрытый жир легко недооценить.\n"
+)
 
-def _system_prompt(include_macros: bool, lang: str = "ru") -> str:
+
+def _system_prompt(include_macros: bool, lang: str = "ru", photo: bool = False) -> str:
     lang_line = f"\nОтвечай (поля name и note) на языке: {_LANG_NAME.get(lang, 'русском')}.\n"
-    return _RULES + lang_line + (_SCHEMA_MACROS if include_macros else _SCHEMA_BASE)
+    fatty = _PHOTO_FATTY_RULE if photo else ""
+    return _RULES + fatty + lang_line + (_SCHEMA_MACROS if include_macros else _SCHEMA_BASE)
 
 
 async def estimate_food(image_bytes: Optional[bytes] = None,
@@ -68,7 +77,7 @@ async def estimate_food(image_bytes: Optional[bytes] = None,
     include_macros — просить также белки/жиры/углеводы.
     Возвращает dict: {calories:int, items:list, note:str[, protein_g, fat_g, carb_g]}.
     """
-    system = _system_prompt(include_macros, lang)
+    system = _system_prompt(include_macros, lang, photo=bool(image_bytes))
     content = []
     user_text = caption.strip() if caption else ""
     if user_text:

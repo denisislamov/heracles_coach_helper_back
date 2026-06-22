@@ -59,10 +59,11 @@ def format_daily(user, day, entries) -> str:
             for dish in _entry_dishes(e):
                 dn = dish.get("n") or "—"
                 dk = dish.get("k") or 0
+                grams = f" ({dish['g']} г)" if dish.get("g") else ""
                 macro = ""
                 if dish.get("p") is not None and (dish.get("p") or dish.get("f") or dish.get("c")):
                     macro = f" · Б{dish['p']} Ж{dish['f']} У{dish['c']}"
-                lines.append(f"    • {dn} — {dk} ккал{macro}")
+                lines.append(f"    • {dn}{grams} — {dk} ккал{macro}")
     else:
         lines.append(t("no_records", lang))
     lines.append("")

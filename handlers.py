@@ -347,7 +347,8 @@ async def _log_and_reply(update, context, calories: int, item: str, result: dict
     if len(items) >= 2:
         slim = []
         for it in items:
-            row = {"n": (it.get("name") or "")[:40], "k": _i(it.get("calories"))}
+            row = {"n": (it.get("name") or "")[:40], "k": _i(it.get("calories")),
+                   "g": _i(it.get("grams"))}
             if macros_on:
                 row.update(p=_i(it.get("protein_g")), f=_i(it.get("fat_g")), c=_i(it.get("carb_g")))
             slim.append(row)

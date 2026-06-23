@@ -26,6 +26,20 @@
   <div class="chart-box"><h3 style="margin:0 0 10px">Приёмы пищи (14 дней)</h3><canvas id="cEntries"></canvas></div>
 </div>
 
+<h3 style="margin:24px 0 10px">📥 Источники привлечения</h3>
+<table>
+  <tr><th>Источник</th><th>Пользователей</th><th>Платящих</th><th>Конверсия</th></tr>
+  {% for r in sources %}
+  <tr>
+    <td>{{ r.src }}</td>
+    <td>{{ r.total }}</td>
+    <td>{{ r.paying }}</td>
+    <td class="muted">{{ ((r.paying / r.total * 100) | round(1)) if r.total else 0 }}%</td>
+  </tr>
+  {% endfor %}
+</table>
+<p class="muted" style="margin-top:6px">Метка задаётся ссылкой <code>?start=site</code> / <code>?start=channel</code> и т.п. «(прямой)» — без метки.</p>
+
 <script>
   const labels = {{ labels|tojson }};
   const opts = { plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#9aa3b2'}},y:{ticks:{color:'#9aa3b2'},beginAtZero:true}} };

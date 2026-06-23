@@ -133,6 +133,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS diet_text    TEXT;  -- текст р�
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked      BOOLEAN NOT NULL DEFAULT FALSE;  -- заблокировал бота
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reminder_mode TEXT NOT NULL DEFAULT 'interval';  -- interval | smart
 ALTER TABLE users ADD COLUMN IF NOT EXISTS meal_times    TEXT;  -- ручные часы приёмов для умных напоминаний, напр. "8,13,19"
+ALTER TABLE users ADD COLUMN IF NOT EXISTS source        TEXT;  -- источник привлечения (site|channel|ads_*|referral), first-touch
 
 -- Рефералы: кто кого привёл (один реферал на нового пользователя).
 CREATE TABLE IF NOT EXISTS referrals (
@@ -267,6 +268,13 @@ async def active_users() -> list:
 async def set_blocked(user_id: int, blocked: bool = True) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("UPDATE users SET blocked=$2 WHERE user_id=$1", user_id, blocked)
+
+
+async def set_source(user_id: int, source: str) -> None:
+    """Запомнить источник привлечения (first-touch: только если ещё не задан)."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET source=$2 WHERE user_id=$1 AND source IS NULL", user_id, source)
 
 
 async def set_goal(user_id: int, goal: int) -> None:

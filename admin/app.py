@@ -148,8 +148,19 @@ def analytics():
         "SELECT created_at::date d, count(*) c FROM entries "
         "WHERE created_at >= now() - interval '14 days' GROUP BY d")
 
+    # источники привлечения: сколько пришло и сколько из них платят
+    sources = query(
+        """SELECT COALESCE(source, '(прямой / не размечен)') AS src,
+                  count(*) AS total,
+                  count(*) FILTER (
+                      WHERE EXISTS (SELECT 1 FROM payments p
+                                    WHERE p.user_id = users.user_id AND NOT p.is_refunded)
+                  ) AS paying
+           FROM users GROUP BY src ORDER BY total DESC""") or []
+
     return render_template("analytics.html", s=stats, labels=labels,
-                           new_users_series=new_users_series, entries_series=entries_series)
+                           new_users_series=new_users_series, entries_series=entries_series,
+                           sources=sources)
 
 
 # ----------------------------------------------------------------- Пользователи

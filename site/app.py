@@ -202,10 +202,16 @@ def get_prices():
             "macros": num(m.get("macros_price"), "300")}
 
 
+def _bot_cta() -> str:
+    """Ссылка в бота с меткой источника для атрибуции (откуда пришёл юзер)."""
+    sep = "&" if "?" in BOT_URL else "?"
+    return f"{BOT_URL}{sep}start=site"
+
+
 @app.context_processor
 def inject_globals():
     lang = get_lang()
-    return {"lang": lang, "tr": T[lang], "bot_url": BOT_URL, "prices": get_prices(),
+    return {"lang": lang, "tr": T[lang], "bot_url": _bot_cta(), "prices": get_prices(),
             "site_name": SITE_NAME, "langs": LANGS, "now_year": dt.date.today().year}
 
 

@@ -161,10 +161,21 @@ async def _handle_referral(update, context, inserted: bool):
         pass
 
 
+async def _capture_source(update, context):
+    """Запомнить источник из ?start=<source> (first-touch). ref_<id> → 'referral'."""
+    if not context.args:
+        return
+    arg = context.args[0]
+    source = "referral" if arg.startswith("ref_") else re.sub(r"[^a-z0-9_\-]", "", arg.lower())[:32]
+    if source:
+        await db.set_source(update.effective_user.id, source)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
     context.user_data.pop("entry_date", None)  # сбрасываем «другой день»
     inserted = await db.ensure_user(u.id, u.username)
+    await _capture_source(update, context)
     await _handle_referral(update, context, inserted)
     if inserted:  # язык по настройкам Telegram у нового пользователя
         await db.update_settings(u.id, lang=i18n.norm_lang(u.language_code))

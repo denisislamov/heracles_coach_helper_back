@@ -91,6 +91,12 @@ services:
         sync: false            # для ИИ-помощника по аналитике
       - key: OPENAI_MODEL_ADMIN
         value: gpt-4o-mini     # дешёвая модель для чата-помощника
+      - key: OPENAI_MODEL_NEWS
+        value: gpt-4o          # модель для генерации новостей кнопкой «сейчас»
+      - key: OPENAI_IMAGE_MODEL
+        value: dall-e-3        # картинки к новостям
+      - key: CHANNEL_ID
+        sync: false            # тот же канал, что у бота — для кнопки «опубликовать сейчас»
       - key: ADMIN_LOGIN
         sync: false            # логин (можно свой email)
       - key: ADMIN_PASSWORD

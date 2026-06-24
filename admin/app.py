@@ -28,6 +28,9 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 STAR_USD = float(os.environ.get("STAR_USD", "0.013"))  # курс звезды для оценки выручки
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL_ADMIN = os.environ.get("OPENAI_MODEL_ADMIN", "gpt-4o-mini")
+OPENAI_MODEL_NEWS = os.environ.get("OPENAI_MODEL_NEWS", "gpt-4o")
+OPENAI_IMAGE_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "dall-e-3")
+CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 
 APP_VERSION = "1.18.0"  # версия админки (синхронизируй с version.py бота)
 
@@ -446,11 +449,113 @@ def _news_ai_draft(topic: str) -> dict:
         return {"error": str(e)}
 
 
+# Дефолтные SEO-промты «Миф vs правда про КБЖУ» (синхронно с channel.py бота).
+_NEWS_FMT = ("Рубрика «Миф vs правда» про КБЖУ. В заголовке начни со слов «Миф vs правда:». "
+             "В тексте раздели «❌ Миф: …» и «✅ Правда: …» (по ВОЗ/доказательной базе), "
+             "про калории и/или белки-жиры-углеводы. Тема и ключи: ")
+_DEFAULT_NEWS_PROMPTS = [
+    _NEWS_FMT + "«жиры вредны». Ключи: жиры, КБЖУ, калории.",
+    _NEWS_FMT + "«считать калории бесполезно». Ключи: подсчёт калорий, КБЖУ.",
+    _NEWS_FMT + "«углеводы вечером в жир». Ключи: углеводы, КБЖУ, калории.",
+    _NEWS_FMT + "«обезжиренное помогает худеть». Ключи: жиры, калории, КБЖУ.",
+    _NEWS_FMT + "«после 18:00 нельзя есть». Ключи: калории, дефицит калорий, КБЖУ.",
+    _NEWS_FMT + "«сахар надо полностью исключить». Ключи: сахар, углеводы, КБЖУ.",
+]
+
+
+def _news_prompts() -> list:
+    raw = _get_setting("channel_topics", "")
+    items = [s.strip() for s in (raw or "").splitlines() if s.strip()]
+    return items or _DEFAULT_NEWS_PROMPTS
+
+
+def _openai_image(prompt: str):
+    """Сгенерировать картинку через OpenAI Images, вернуть URL или None."""
+    try:
+        r = requests.post(
+            "https://api.openai.com/v1/images/generations",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            json={"model": OPENAI_IMAGE_MODEL,
+                  "prompt": ("Appetizing, photorealistic food photography, soft natural light, "
+                             "no text, no watermark. " + prompt),
+                  "size": "1024x1024", "n": 1},
+            timeout=120)
+        return r.json()["data"][0]["url"]
+    except Exception:
+        return None
+
+
+def _generate_and_publish_news():
+    """Немедленно: ИИ-новость + картинка → на сайт (news) и в Telegram-канал. (ok, msg)."""
+    if not OPENAI_API_KEY:
+        return False, "OPENAI_API_KEY не задан для админки"
+    import json as _json
+    import random as _random
+    prompt = _random.choice(_news_prompts())
+    system = (
+        "Ты — редактор контента про здоровое питание и КБЖУ (бренд «Жиромер») для сайта и "
+        "Telegram-канала. Заголовок + текст до 700 знаков, живо, с 1-2 эмодзи, вплети SEO-ключи. "
+        "Только достоверные факты (ВОЗ/доказательная база), без выдуманных чисел и обещаний "
+        "«минус 10 кг». Также дай короткий промпт на АНГЛИЙСКОМ для фото-картинки (еда, без текста). "
+        'Верни строго JSON: {"title","text","image_prompt"}.')
+    try:
+        r = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            json={"model": OPENAI_MODEL_NEWS,
+                  "messages": [{"role": "system", "content": system},
+                               {"role": "user", "content": f"Промт: {prompt}"}],
+                  "response_format": {"type": "json_object"},
+                  "max_tokens": 700, "temperature": 0.7},
+            timeout=90)
+        data = _json.loads(r.json()["choices"][0]["message"]["content"])
+    except Exception as e:
+        return False, f"Не удалось сгенерировать текст: {e}"
+    title = (data.get("title") or "").strip()[:300]
+    text = (data.get("text") or "").strip()
+    img_prompt = (data.get("image_prompt") or "").strip()
+    if not (title and text and img_prompt):
+        return False, "ИИ вернул неполный ответ, попробуй ещё раз"
+    image_url = _openai_image(img_prompt)
+    if not image_url:
+        return False, "Не удалось сгенерировать картинку (картинка обязательна)"
+
+    slug = _slugify(title) + "-" + dt_now_suffix()
+    try:
+        execute("""INSERT INTO news (slug, title_ru, body_ru, image_url, published, published_at)
+                   VALUES (%s,%s,%s,%s,TRUE,now()) ON CONFLICT (slug) DO NOTHING""",
+                (slug, title, text, image_url))
+    except Exception as e:
+        return False, f"Не удалось сохранить на сайт: {e}"
+
+    posted = "на сайт"
+    if BOT_TOKEN and CHANNEL_ID:
+        try:
+            bot_link = "https://t.me/zhiromer_bot?start=channel"
+            try:
+                me = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getMe", timeout=10).json()
+                bot_link = f"https://t.me/{me['result']['username']}?start=channel"
+            except Exception:
+                pass
+            caption = f"{title}\n\n{text}\n\n👉 {bot_link}"[:1024]
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                          data={"chat_id": CHANNEL_ID, "photo": image_url, "caption": caption},
+                          timeout=30)
+            posted = "на сайт и в канал"
+        except Exception as e:
+            return True, f"Опубликовано на сайт, но в канал не ушло: {e}"
+    return True, f"✅ Новость опубликована ({posted}): {title}"
+
+
 @app.route("/news", methods=["GET", "POST"])
 @login_required
 def news_admin():
     if request.method == "POST":
         action = request.form.get("action")
+        if action == "gen_now":
+            ok, msg = _generate_and_publish_news()
+            flash(msg)
+            return redirect(url_for("news_admin"))
         if action == "ai_draft":
             topic = (request.form.get("topic") or "").strip()
             if not topic:

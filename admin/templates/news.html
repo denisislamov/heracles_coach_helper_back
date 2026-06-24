@@ -49,6 +49,11 @@
     <button class="primary" type="submit">Сгенерировать черновик</button>
   </form>
   <p class="muted" style="margin:8px 0 0">ИИ создаст неопубликованный черновик (RU+EN) — потом проверишь и опубликуешь.</p>
+  <form method="post" style="margin-top:12px" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Генерирую…'">
+    <input type="hidden" name="action" value="gen_now">
+    <button class="primary" type="submit">🪄 Сгенерировать и опубликовать сейчас (сайт + канал)</button>
+  </form>
+  <p class="muted" style="margin:6px 0 0">Берёт случайный SEO-промт (из Настроек или дефолт), генерит новость + картинку и сразу публикует на сайт и в канал. Займёт ~10–20 сек.</p>
 </div>
 
 {% if rows %}

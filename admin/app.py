@@ -129,6 +129,15 @@ def collect_stats() -> dict:
     return stats
 
 
+# Человекочитаемые подписи источников трафика (ключ = значение ?start=<source>).
+SOURCE_LABELS = {
+    "site": "🌐 Сайт",
+    "channel": "📣 Telegram-канал",
+    "referral": "👥 Реферальная программа",
+    "dzen": "📰 Яндекс Дзен",
+}
+
+
 @app.route("/analytics")
 @login_required
 def analytics():
@@ -163,7 +172,7 @@ def analytics():
 
     return render_template("analytics.html", s=stats, labels=labels,
                            new_users_series=new_users_series, entries_series=entries_series,
-                           sources=sources)
+                           sources=sources, source_labels=SOURCE_LABELS)
 
 
 # ----------------------------------------------------------------- Пользователи

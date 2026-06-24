@@ -31,14 +31,14 @@
   <tr><th>Источник</th><th>Пользователей</th><th>Платящих</th><th>Конверсия</th></tr>
   {% for r in sources %}
   <tr>
-    <td>{{ r.src }}</td>
+    <td>{{ source_labels.get(r.src, r.src) }}</td>
     <td>{{ r.total }}</td>
     <td>{{ r.paying }}</td>
     <td class="muted">{{ ((r.paying / r.total * 100) | round(1)) if r.total else 0 }}%</td>
   </tr>
   {% endfor %}
 </table>
-<p class="muted" style="margin-top:6px">Метка задаётся ссылкой <code>?start=site</code> / <code>?start=channel</code> и т.п. «(прямой)» — без метки.</p>
+<p class="muted" style="margin-top:6px">Метка задаётся ссылкой <code>?start=site</code> / <code>?start=channel</code> / <code>?start=dzen</code> и т.п. «(прямой)» — без метки.</p>
 
 <script>
   const labels = {{ labels|tojson }};

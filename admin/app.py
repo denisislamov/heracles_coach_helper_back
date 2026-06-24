@@ -469,17 +469,33 @@ def _news_prompts() -> list:
     return items or _DEFAULT_NEWS_PROMPTS
 
 
+# Случайные стили/композиции — чтобы картинки к новостям не были однотипными.
+_IMG_STYLES = [
+    "professional food photography, top-down flat lay, marble surface, soft daylight",
+    "close-up macro shot, shallow depth of field, fresh ingredient, natural light",
+    "bright airy kitchen scene, candid lifestyle, morning light",
+    "vibrant farmers market stall, colorful produce, documentary style",
+    "minimalist still life on pastel background, studio softbox lighting",
+    "rustic wooden table, cozy warm tones, side angle, golden hour",
+    "clean editorial magazine style, single subject, bold negative space",
+    "dynamic action shot, sports and fitness setting, energetic mood",
+    "overhead arrangement of ingredients with kitchen scale, neat composition",
+    "moody dark-background gourmet photography, dramatic rim light",
+]
+
+
 def _openai_image(prompt: str):
     """Сгенерировать картинку через OpenAI Images. Возвращает (url, error)."""
     if not OPENAI_API_KEY:
         return None, "OPENAI_API_KEY не задан для админки"
+    import random as _random
+    style = _random.choice(_IMG_STYLES)
     try:
         r = requests.post(
             "https://api.openai.com/v1/images/generations",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
             json={"model": OPENAI_IMAGE_MODEL,
-                  "prompt": ("Appetizing, photorealistic food photography, soft natural light, "
-                             "no text, no watermark. " + prompt),
+                  "prompt": f"{prompt}. Style: {style}. No text, no numbers, no watermark, no logos.",
                   "size": "1024x1024", "n": 1},
             timeout=120)
         body = r.json()
@@ -516,7 +532,11 @@ def _gen_news_draft():
         "Ты — редактор контента про здоровое питание и КБЖУ (бренд «Жиромер») для сайта и "
         "Telegram-канала. Заголовок + текст до 700 знаков, живо, с 1-2 эмодзи, вплети SEO-ключи. "
         "Только достоверные факты (ВОЗ/доказательная база), без выдуманных чисел и обещаний "
-        "«минус 10 кг». Также дай короткий промпт на АНГЛИЙСКОМ для фото-картинки (еда, без текста). "
+        "«минус 10 кг». Также дай короткий промпт на АНГЛИЙСКОМ для картинки к материалу. "
+        "Картинка должна быть РАЗНООБРАЗНОЙ и подходящей именно к теме, а НЕ всегда «тарелка с едой»: "
+        "выбери уместный сюжет (отдельный продукт/ингредиент крупным планом, разрез фрукта/овоща, "
+        "рынок, кухонная сцена, спорт/активность, кухонные весы и мерная посуда, раскладка продуктов "
+        "flat lay, концептуальный натюрморт). Опиши конкретную сцену, ракурс и фон, без текста и цифр. "
         'Верни строго JSON: {"title","text","image_prompt"}.')
     try:
         r = requests.post(

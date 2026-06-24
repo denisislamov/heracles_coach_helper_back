@@ -4,6 +4,7 @@
 """
 import base64
 import json
+import random
 from typing import Optional
 
 from openai import AsyncOpenAI
@@ -349,9 +350,27 @@ _NEWS_SYSTEM = (
     "доказательная база). НЕ выдумывай числа, исследования и цитаты; если точное число "
     "неизвестно — дай диапазон или избегай его. Без обещаний «минус 10 кг» и мед. диагнозов. "
     "Не добавляй призыв подписаться/CTA — его добавят отдельно. "
-    "Также придумай короткий промпт на АНГЛИЙСКОМ для аппетитной фотореалистичной картинки "
-    "к материалу (еда/блюдо/продукты, без текста на картинке)."
+    "Также придумай короткий промпт на АНГЛИЙСКОМ для картинки к материалу. "
+    "Картинка должна быть РАЗНООБРАЗНОЙ и подходящей именно к теме поста, а НЕ всегда "
+    "«тарелка с едой». Выбери уместный сюжет: отдельный продукт/ингредиент крупным планом, "
+    "разрез фрукта/овоща, рынок или прилавок, кухонная сцена, спорт/активность, кухонные весы "
+    "и мерная посуда, раскладка продуктов (flat lay), концептуальный натюрморт и т.п. "
+    "Опиши конкретную сцену, ракурс и фон. Без текста, цифр и логотипов на картинке."
 )
+
+# Случайные стили/композиции — чтобы картинки не были однотипными.
+_IMG_STYLES = [
+    "professional food photography, top-down flat lay, marble surface, soft daylight",
+    "close-up macro shot, shallow depth of field, fresh ingredient, natural light",
+    "bright airy kitchen scene, candid lifestyle, morning light",
+    "vibrant farmers market stall, colorful produce, documentary style",
+    "minimalist still life on pastel background, studio softbox lighting",
+    "rustic wooden table, cozy warm tones, side angle, golden hour",
+    "clean editorial magazine style, single subject, bold negative space",
+    "dynamic action shot, sports and fitness setting, energetic mood",
+    "overhead arrangement of ingredients with kitchen scale, neat composition",
+    "moody dark-background gourmet photography, dramatic rim light",
+]
 
 
 async def generate_news(prompt: str, lang: str = "ru") -> Optional[dict]:
@@ -384,10 +403,10 @@ async def generate_image(prompt: str) -> Optional[str]:
     """Сгенерировать картинку (OpenAI Images). Вернуть URL (dall-e-3) или
     data-URI с base64 (gpt-image-1), либо None при сбое."""
     try:
+        style = random.choice(_IMG_STYLES)
         resp = await _client.images.generate(
             model=config.OPENAI_IMAGE_MODEL,
-            prompt=("Appetizing, photorealistic food photography, soft natural light, "
-                    "no text, no watermark. " + prompt),
+            prompt=f"{prompt}. Style: {style}. No text, no numbers, no watermark, no logos.",
             size="1024x1024", n=1,
         )
         d = resp.data[0]

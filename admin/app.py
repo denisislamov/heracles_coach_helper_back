@@ -531,7 +531,10 @@ def settings():
         _set_setting("monetization_enabled", "1" if request.form.get("monetization") == "on" else "0")
         _set_setting("macros_tier_enabled", "1" if request.form.get("macros_tier") == "on" else "0")
         _set_setting("referral_enabled", "1" if request.form.get("referral_enabled") == "on" else "0")
+        _set_setting("channel_enabled", "1" if request.form.get("channel_enabled") == "on" else "0")
+        _set_setting("channel_topics", (request.form.get("channel_topics") or "").strip())
         try:
+            _set_setting("channel_per_day", max(1, int(request.form.get("channel_per_day", "1"))))
             _set_setting("free_daily_ai", max(0, int(request.form.get("free_daily_ai", "3"))))
             _set_setting("free_period_days", max(1, int(request.form.get("free_period_days", "30"))))
             _set_setting("premium_price", max(1, int(request.form.get("premium_price", "200"))))
@@ -552,6 +555,9 @@ def settings():
         "referral_enabled": _get_setting("referral_enabled", "1") in ("1", "true", "yes", "on"),
         "referral_reward_days": _get_setting("referral_reward_days", "30"),
         "referral_friends_needed": _get_setting("referral_friends_needed", "1"),
+        "channel_enabled": _get_setting("channel_enabled", "0") in ("1", "true", "yes", "on"),
+        "channel_per_day": _get_setting("channel_per_day", "1"),
+        "channel_topics": _get_setting("channel_topics", ""),
     }
     return render_template("settings.html", cur=cur)
 

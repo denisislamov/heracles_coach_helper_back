@@ -65,6 +65,10 @@ services:
         sync: false            # твой Telegram user_id (для /addpromo, /refund, /stats)
       - key: TELEGRAM_TEST_ENV
         value: "0"             # в проде всегда 0
+      - key: CHANNEL_ID
+        sync: false            # @username или -100... канала для автопостинга (бот — админ канала)
+      - key: OPENAI_IMAGE_MODEL
+        value: dall-e-3        # модель генерации картинок для постов
 
   # --- Веб-админка (отдельный сервис, та же база) ---
   - type: web

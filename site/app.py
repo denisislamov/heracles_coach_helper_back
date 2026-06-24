@@ -236,6 +236,7 @@ def news_list():
         title, body = news_fields(r, lang)
         excerpt = (body or "").strip().split("\n\n")[0][:180]
         items.append({"slug": r["slug"], "title": title, "excerpt": excerpt,
+                      "image": r.get("image_url"),
                       "date": r["published_at"] or r["created_at"]})
     return render_template("news_list.html", news=items)
 
@@ -248,7 +249,7 @@ def news_detail(slug):
         abort(404)
     title, body = news_fields(r, lang)
     return render_template("news_detail.html", title=title,
-                           body=render_body(body),
+                           body=render_body(body), image=r.get("image_url"),
                            date=r["published_at"] or r["created_at"])
 
 

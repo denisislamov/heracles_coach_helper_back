@@ -7,6 +7,7 @@
   <div class="news-grid wide">
     {% for n in news %}
     <a class="news-card" href="{{ url_for('news_detail', slug=n.slug) }}">
+      {% if n.image %}<img src="{{ n.image }}" alt="" class="news-thumb">{% endif %}
       <span class="news-date">{{ n.date.strftime('%d.%m.%Y') }}</span>
       <h3>{{ n.title }}</h3>
       <p class="muted">{{ n.excerpt }}{% if n.excerpt|length >= 180 %}…{% endif %}</p>

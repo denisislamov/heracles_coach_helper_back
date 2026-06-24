@@ -8,6 +8,7 @@ from telegram.error import BadRequest, Forbidden
 from telegram.ext import (Application, CommandHandler, MessageHandler,
                           CallbackQueryHandler, PreCheckoutQueryHandler, filters)
 
+import channel
 import config
 import db
 import fasting
@@ -44,6 +45,7 @@ async def _post_init(application: Application) -> None:
     await reports.schedule_all(application)
     await reminders.schedule_all(application)
     await fasting.reschedule_all(application)
+    channel.schedule(application)
     await _maybe_announce_changelog(application)
     # подхватывать смену настроек (монетизация/лимиты) из админки раз в минуту
     application.job_queue.run_repeating(payments.refresh_settings_job, interval=60, first=60)

@@ -52,6 +52,21 @@
       <input name="referral_friends_needed" type="number" min="1" value="{{ cur.referral_friends_needed }}" style="width:120px">
     </div>
 
+    <hr style="border:none;border-top:1px solid var(--line);width:100%">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <label style="font-size:16px;">📰 Автогенерация новостей</label>
+      <input type="checkbox" name="channel_enabled" {{ 'checked' if cur.channel_enabled }} style="width:20px;height:20px;">
+    </div>
+    <p class="muted" style="margin:-8px 0 0">ИИ выбирает случайный промт из списка ниже, генерит новость + картинку и публикует на сайт и в Telegram-канал. Для канала бот должен быть его админом (ID — в переменной CHANNEL_ID сервиса); без CHANNEL_ID новость идёт только на сайт.</p>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Публикаций в сутки</label>
+      <input name="channel_per_day" type="number" min="1" max="24" value="{{ cur.channel_per_day }}" style="width:120px">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Шаблоны промтов с SEO-словами (по одному на строку — берётся случайный; пусто = дефолтный набор)</label>
+      <textarea name="channel_topics" rows="6" placeholder="Сколько калорий в шаурме. Ключи: счётчик калорий, КБЖУ&#10;Миф о питании по ВОЗ. Ключи: здоровое питание, дневник питания&#10;Как считать калории по фото. Ключи: счётчик калорий по фото">{{ cur.channel_topics }}</textarea>
+    </div>
+
     <button class="primary" type="submit" style="align-self:flex-start;">Сохранить</button>
   </form>
 </div>

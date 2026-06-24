@@ -149,6 +149,8 @@ main { max-width: 1080px; margin: 0 auto; padding: 0 22px; }
 .article { max-width: 720px; margin: 0 auto; }
 .article .back { display: inline-block; margin-bottom: 14px; font-weight: 600; }
 .article h1 { font-size: 34px; margin: 8px 0 20px; }
+.article-img { width: 100%; border-radius: 14px; margin: 6px 0 18px; }
+.news-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 12px; margin-bottom: 10px; }
 .article-body { font-size: 18px; }
 .article-body p { margin: 0 0 18px; }
 .article-cta { margin-top: 32px; text-align: center; }

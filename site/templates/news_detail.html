@@ -5,6 +5,7 @@
   <a class="back" href="{{ url_for('news_list') }}">{{ tr.back }}</a>
   <span class="news-date">{{ date.strftime('%d.%m.%Y') }}</span>
   <h1>{{ title }}</h1>
+  {% if image %}<img src="{{ image }}" alt="" class="article-img">{% endif %}
   <div class="article-body">{{ body }}</div>
   <div class="article-cta">
     <a class="btn btn-lg" href="{{ bot_url }}" target="_blank" rel="noopener">{{ tr.cta }}</a>

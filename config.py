@@ -17,6 +17,12 @@ OPENAI_API_KEY = _req("OPENAI_API_KEY")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
 # Дешёвая модель для бесплатного тира (снижает себестоимость, см. МОНЕТИЗАЦИЯ.md §9).
 OPENAI_MODEL_FREE = os.environ.get("OPENAI_MODEL_FREE", "gpt-4o-mini")
+# Модель генерации картинок для постов в канал.
+OPENAI_IMAGE_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "dall-e-3")
+
+# --- Автопостинг в Telegram-канал ---
+# ID или @username канала, где бот — администратор (напр. @zhiromer или -1001234567890).
+CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 
 # --- База данных ---
 DATABASE_URL = _req("DATABASE_URL")

@@ -180,6 +180,7 @@ CREATE TABLE IF NOT EXISTS news (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     published_at TIMESTAMPTZ
 );
+ALTER TABLE news ADD COLUMN IF NOT EXISTS image_url TEXT;  -- картинка к новости (для сайта и канала)
 CREATE INDEX IF NOT EXISTS idx_news_pub ON news(published, published_at DESC);
 
 -- Интервальное голодание (Premium): активный пост (end_at IS NULL) и история.
@@ -192,6 +193,16 @@ CREATE TABLE IF NOT EXISTS fasts (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_fasts_user ON fasts(user_id, start_at DESC);
+
+-- Лог автопостов в канал (для контроля частоты и истории).
+CREATE TABLE IF NOT EXISTS channel_posts (
+    id         BIGSERIAL PRIMARY KEY,
+    topic      TEXT,
+    text       TEXT,
+    image_url  TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_channel_posts_created ON channel_posts(created_at DESC);
 
 -- Ответы пользователей на опрос (за награду). Видны в админке.
 CREATE TABLE IF NOT EXISTS surveys (
@@ -771,6 +782,34 @@ async def reset_user(user_id: int) -> None:
                        ai_count_date=NULL, ai_count_today=0, onboarded=FALSE
                    WHERE user_id=$1""",
                 user_id)
+
+
+async def add_published_news(slug: str, title: str, body: str, image_url: str = None) -> None:
+    """Опубликовать новость (для сайта). Идемпотентно по slug."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO news (slug, title_ru, body_ru, image_url, published, published_at)
+               VALUES ($1, $2, $3, $4, TRUE, now())
+               ON CONFLICT (slug) DO NOTHING""",
+            slug, title, body, image_url)
+
+
+async def add_channel_post(topic: str, text: str, image_url: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO channel_posts (topic, text, image_url) VALUES ($1, $2, $3)",
+            topic, text, image_url)
+
+
+async def channel_posts_today() -> int:
+    async with _pool.acquire() as conn:
+        return int(await conn.fetchval(
+            "SELECT count(*) FROM channel_posts WHERE created_at::date = (now())::date") or 0)
+
+
+async def last_channel_post_at():
+    async with _pool.acquire() as conn:
+        return await conn.fetchval("SELECT max(created_at) FROM channel_posts")
 
 
 async def get_setting(key: str) -> Optional[str]:

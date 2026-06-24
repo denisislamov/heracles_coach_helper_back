@@ -340,6 +340,60 @@ async def classify_intent(text: str) -> str:
         return "other"
 
 
+_NEWS_SYSTEM = (
+    "Ты — редактор контента про здоровое питание и подсчёт калорий (бренд «Жиромер») "
+    "для сайта и Telegram-канала. По заданному промту напиши короткий материал: "
+    "цепляющий заголовок и текст до 700 знаков, живо, по делу, с 1-2 эмодзи. "
+    "Естественно вплети SEO-ключи из промта. "
+    "ВАЖНО: только достоверные, общепринятые факты (консенсус нутрициологии: ВОЗ/DRI, "
+    "доказательная база). НЕ выдумывай числа, исследования и цитаты; если точное число "
+    "неизвестно — дай диапазон или избегай его. Без обещаний «минус 10 кг» и мед. диагнозов. "
+    "Не добавляй призыв подписаться/CTA — его добавят отдельно. "
+    "Также придумай короткий промпт на АНГЛИЙСКОМ для аппетитной фотореалистичной картинки "
+    "к материалу (еда/блюдо/продукты, без текста на картинке)."
+)
+
+
+async def generate_news(prompt: str, lang: str = "ru") -> Optional[dict]:
+    """Сгенерировать новость для сайта и канала. {title, text, image_prompt} или None."""
+    try:
+        resp = await _client.chat.completions.create(
+            model=config.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _NEWS_SYSTEM
+                 + f"\nЯзык: {_LANG_NAME.get(lang, 'русском')}. "
+                   'Верни строго JSON: {"title": <str>, "text": <str>, "image_prompt": <str англ.>}'},
+                {"role": "user", "content": f"Промт: {prompt}"},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=700,
+            temperature=0.7,
+        )
+        data = json.loads(resp.choices[0].message.content)
+        title = (data.get("title") or "").strip()
+        text = (data.get("text") or "").strip()
+        img = (data.get("image_prompt") or "").strip()
+        if not title or not text or not img:
+            return None
+        return {"title": title[:300], "text": text[:900], "image_prompt": img[:400]}
+    except Exception:
+        return None
+
+
+async def generate_image(prompt: str) -> Optional[str]:
+    """Сгенерировать картинку (OpenAI Images) и вернуть URL, либо None при сбое."""
+    try:
+        resp = await _client.images.generate(
+            model=config.OPENAI_IMAGE_MODEL,
+            prompt=("Appetizing, photorealistic food photography, soft natural light, "
+                    "no text, no watermark. " + prompt),
+            size="1024x1024", n=1,
+        )
+        return resp.data[0].url
+    except Exception:
+        return None
+
+
 async def diet_advice(goal: int, consumed: int, items_today: list,
                       goal_mode: str = "lose", macros: dict = None,
                       macro_goals: dict = None, lang: str = "ru") -> str:

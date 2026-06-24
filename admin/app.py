@@ -470,7 +470,9 @@ def _news_prompts() -> list:
 
 
 def _openai_image(prompt: str):
-    """Сгенерировать картинку через OpenAI Images, вернуть URL или None."""
+    """Сгенерировать картинку через OpenAI Images. Возвращает (url, error)."""
+    if not OPENAI_API_KEY:
+        return None, "OPENAI_API_KEY не задан для админки"
     try:
         r = requests.post(
             "https://api.openai.com/v1/images/generations",
@@ -480,9 +482,13 @@ def _openai_image(prompt: str):
                              "no text, no watermark. " + prompt),
                   "size": "1024x1024", "n": 1},
             timeout=120)
-        return r.json()["data"][0]["url"]
-    except Exception:
-        return None
+        body = r.json()
+        if r.status_code != 200 or "data" not in body:
+            err = (body.get("error") or {}).get("message") if isinstance(body, dict) else None
+            return None, f"OpenAI {r.status_code}: {err or str(body)[:200]}"
+        return body["data"][0]["url"], None
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
 
 
 def _gen_news_draft():
@@ -516,9 +522,9 @@ def _gen_news_draft():
     img_prompt = (data.get("image_prompt") or "").strip()
     if not (title and text and img_prompt):
         return False, "ИИ вернул неполный ответ, попробуй ещё раз"
-    image_url = _openai_image(img_prompt)
+    image_url, img_err = _openai_image(img_prompt)
     if not image_url:
-        return False, "Не удалось сгенерировать картинку (картинка обязательна)"
+        return False, f"Не удалось сгенерировать картинку (обязательна): {img_err}"
     slug = _slugify(title) + "-" + dt_now_suffix()
     try:
         execute("""INSERT INTO news (slug, title_ru, body_ru, image_url, published)

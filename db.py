@@ -180,7 +180,8 @@ CREATE TABLE IF NOT EXISTS news (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     published_at TIMESTAMPTZ
 );
-ALTER TABLE news ADD COLUMN IF NOT EXISTS image_url TEXT;  -- картинка к новости (для сайта и канала)
+ALTER TABLE news ADD COLUMN IF NOT EXISTS image_url TEXT;  -- временная ссылка на картинку (превью)
+ALTER TABLE news ADD COLUMN IF NOT EXISTS image_file_id TEXT;  -- Telegram file_id (постоянное хранение картинки)
 CREATE INDEX IF NOT EXISTS idx_news_pub ON news(published, published_at DESC);
 
 -- Интервальное голодание (Premium): активный пост (end_at IS NULL) и история.
@@ -784,14 +785,19 @@ async def reset_user(user_id: int) -> None:
                 user_id)
 
 
-async def add_published_news(slug: str, title: str, body: str, image_url: str = None) -> None:
-    """Опубликовать новость (для сайта). Идемпотентно по slug."""
+async def add_published_news(slug: str, title: str, body: str, image_url: str = None) -> int:
+    """Опубликовать новость (для сайта). Возвращает id."""
     async with _pool.acquire() as conn:
-        await conn.execute(
+        return await conn.fetchval(
             """INSERT INTO news (slug, title_ru, body_ru, image_url, published, published_at)
                VALUES ($1, $2, $3, $4, TRUE, now())
-               ON CONFLICT (slug) DO NOTHING""",
+               ON CONFLICT (slug) DO UPDATE SET title_ru=EXCLUDED.title_ru RETURNING id""",
             slug, title, body, image_url)
+
+
+async def set_news_image_file_id(news_id: int, file_id: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("UPDATE news SET image_file_id=$2 WHERE id=$1", news_id, file_id)
 
 
 async def add_channel_post(topic: str, text: str, image_url: str) -> None:

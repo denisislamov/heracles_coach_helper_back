@@ -99,26 +99,35 @@ async def _job(context) -> None:
         await _notify_admins(context, "⚠️ Новости: не удалось сгенерировать картинку, публикация пропущена.")
         return
 
-    # 1) на сайт (таблица news)
+    # 1) на сайт (таблица news) — запоминаем id, чтобы потом дописать постоянный file_id
+    news_id = None
     try:
-        await db.add_published_news(_slug(news["title"]), news["title"], news["text"], image_url)
+        news_id = await db.add_published_news(_slug(news["title"]), news["title"],
+                                              news["text"], image_url)
     except Exception as e:
         log.warning("channel: не удалось сохранить новость на сайт: %s", e)
 
     # 2) в Telegram-канал (если задан и бот — админ)
     if config.CHANNEL_ID:
         caption = f"*{news['title']}*\n\n{news['text']}\n\n👉 " + await _bot_link(context)
+        msg = None
         try:
-            await context.bot.send_photo(config.CHANNEL_ID, photo=image_url,
-                                         caption=caption[:1024], parse_mode="Markdown")
+            msg = await context.bot.send_photo(config.CHANNEL_ID, photo=image_url,
+                                               caption=caption[:1024], parse_mode="Markdown")
         except Exception as e:
             # повтор без Markdown, если разметка подвела
             try:
                 plain = f"{news['title']}\n\n{news['text']}\n\n👉 " + await _bot_link(context)
-                await context.bot.send_photo(config.CHANNEL_ID, photo=image_url, caption=plain[:1024])
+                msg = await context.bot.send_photo(config.CHANNEL_ID, photo=image_url, caption=plain[:1024])
             except Exception as e2:
                 log.exception("channel: ошибка публикации в канал: %s", e2)
                 await _notify_admins(context, f"⚠️ Канал: не удалось опубликовать.\n{type(e2).__name__}: {e2}")
+        # постоянное хранение картинки: file_id из Telegram (URL от OpenAI живёт ~1ч)
+        if msg and news_id and getattr(msg, "photo", None):
+            try:
+                await db.set_news_image_file_id(news_id, msg.photo[-1].file_id)
+            except Exception as e:
+                log.warning("channel: не удалось сохранить file_id: %s", e)
 
     await db.add_channel_post(prompt, news["title"], image_url)
     log.info("channel: опубликована новость «%s»", news["title"])

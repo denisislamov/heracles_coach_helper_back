@@ -485,8 +485,8 @@ def _openai_image(prompt: str):
         return None
 
 
-def _generate_and_publish_news():
-    """Немедленно: ИИ-новость + картинка → на сайт (news) и в Telegram-канал. (ok, msg)."""
+def _gen_news_draft():
+    """Сгенерировать новость (текст + картинка) и сохранить как ЧЕРНОВИК (не опубликован). (ok, msg)."""
     if not OPENAI_API_KEY:
         return False, "OPENAI_API_KEY не задан для админки"
     import json as _json
@@ -519,17 +519,24 @@ def _generate_and_publish_news():
     image_url = _openai_image(img_prompt)
     if not image_url:
         return False, "Не удалось сгенерировать картинку (картинка обязательна)"
-
     slug = _slugify(title) + "-" + dt_now_suffix()
     try:
-        execute("""INSERT INTO news (slug, title_ru, body_ru, image_url, published, published_at)
-                   VALUES (%s,%s,%s,%s,TRUE,now()) ON CONFLICT (slug) DO NOTHING""",
+        execute("""INSERT INTO news (slug, title_ru, body_ru, image_url, published)
+                   VALUES (%s,%s,%s,%s,FALSE) ON CONFLICT (slug) DO NOTHING""",
                 (slug, title, text, image_url))
     except Exception as e:
-        return False, f"Не удалось сохранить на сайт: {e}"
+        return False, f"Не удалось сохранить черновик: {e}"
+    return True, "✅ Превью сгенерировано — проверь ниже и опубликуй"
 
-    posted = "на сайт"
-    if BOT_TOKEN and CHANNEL_ID:
+
+def _publish_news(news_id):
+    """Опубликовать черновик: на сайт + в канал (с заливкой картинки в Telegram). (ok, msg)."""
+    row = query("SELECT * FROM news WHERE id=%s", (news_id,), one=True)
+    if not row:
+        return False, "Черновик не найден"
+    title, text, image_url = row["title_ru"], row["body_ru"], row.get("image_url")
+    file_id = None
+    if BOT_TOKEN and CHANNEL_ID and image_url:
         try:
             bot_link = "https://t.me/zhiromer_bot?start=channel"
             try:
@@ -538,13 +545,18 @@ def _generate_and_publish_news():
             except Exception:
                 pass
             caption = f"{title}\n\n{text}\n\n👉 {bot_link}"[:1024]
-            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
-                          data={"chat_id": CHANNEL_ID, "photo": image_url, "caption": caption},
-                          timeout=30)
-            posted = "на сайт и в канал"
+            resp = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                                 data={"chat_id": CHANNEL_ID, "photo": image_url, "caption": caption},
+                                 timeout=30).json()
+            if resp.get("ok"):
+                # самый крупный размер фото — постоянный file_id для сайта
+                file_id = resp["result"]["photo"][-1]["file_id"]
         except Exception as e:
-            return True, f"Опубликовано на сайт, но в канал не ушло: {e}"
-    return True, f"✅ Новость опубликована ({posted}): {title}"
+            return False, f"Не удалось опубликовать в канал: {e}"
+    execute("""UPDATE news SET published=TRUE, published_at=now(),
+               image_file_id=COALESCE(%s, image_file_id) WHERE id=%s""", (file_id, news_id))
+    where = "на сайт и в канал" if file_id else "на сайт"
+    return True, f"✅ Опубликовано ({where})"
 
 
 @app.route("/news", methods=["GET", "POST"])
@@ -552,65 +564,23 @@ def _generate_and_publish_news():
 def news_admin():
     if request.method == "POST":
         action = request.form.get("action")
-        if action == "gen_now":
-            ok, msg = _generate_and_publish_news()
-            flash(msg)
-            return redirect(url_for("news_admin"))
-        if action == "ai_draft":
-            topic = (request.form.get("topic") or "").strip()
-            if not topic:
-                flash("Укажи тему для ИИ-черновика")
-                return redirect(url_for("news_admin"))
-            d = _news_ai_draft(topic)
-            if d.get("error"):
-                flash(f"ИИ-черновик не удался: {d['error']}")
-                return redirect(url_for("news_admin"))
-            slug = _slugify(d.get("title_ru", topic)) + "-" + dt_now_suffix()
-            execute(
-                """INSERT INTO news (slug, title_ru, body_ru, title_en, body_en, published)
-                   VALUES (%s,%s,%s,%s,%s,FALSE)""",
-                (slug, d.get("title_ru", topic)[:300], d.get("body_ru", ""),
-                 d.get("title_en"), d.get("body_en")))
-            flash("Черновик создан ИИ — проверь и опубликуй")
-            return redirect(url_for("news_admin"))
-        if action == "delete":
-            execute("DELETE FROM news WHERE id=%s", (request.form["id"],))
-            return redirect(url_for("news_admin"))
-        if action == "toggle":
-            execute("""UPDATE news SET published = NOT published,
-                       published_at = CASE WHEN published THEN published_at ELSE now() END
-                       WHERE id=%s""", (request.form["id"],))
-            return redirect(url_for("news_admin"))
-        # create / update
-        nid = request.form.get("id") or None
-        title_ru = (request.form.get("title_ru") or "").strip()
-        body_ru = (request.form.get("body_ru") or "").strip()
-        if not title_ru or not body_ru:
-            flash("Заголовок и текст (RU) обязательны")
-            return redirect(url_for("news_admin"))
-        title_en = (request.form.get("title_en") or "").strip() or None
-        body_en = (request.form.get("body_en") or "").strip() or None
-        published = request.form.get("published") == "on"
-        if nid:
-            execute("""UPDATE news SET title_ru=%s, body_ru=%s, title_en=%s, body_en=%s,
-                       published=%s, published_at=COALESCE(published_at, CASE WHEN %s THEN now() END)
-                       WHERE id=%s""",
-                    (title_ru, body_ru, title_en, body_en, published, published, nid))
-        else:
-            slug = (request.form.get("slug") or "").strip() or _slugify(title_ru)
-            slug = _slugify(slug) + "-" + dt_now_suffix()
-            execute("""INSERT INTO news (slug, title_ru, body_ru, title_en, body_en,
-                       published, published_at)
-                       VALUES (%s,%s,%s,%s,%s,%s, CASE WHEN %s THEN now() END)""",
-                    (slug, title_ru, body_ru, title_en, body_en, published, published))
-        flash("Новость сохранена")
+        if action == "save_prompts":
+            _set_setting("channel_topics", (request.form.get("channel_topics") or "").strip())
+            flash("Промты сохранены")
+        elif action == "gen_preview":
+            flash(_gen_news_draft()[1])
+        elif action == "publish":
+            flash(_publish_news(request.form.get("id"))[1])
+        elif action == "discard":
+            execute("DELETE FROM news WHERE id=%s AND NOT published", (request.form.get("id"),))
+            flash("Черновик удалён")
         return redirect(url_for("news_admin"))
 
-    rows = query("SELECT * FROM news ORDER BY created_at DESC") or []
-    edit = None
-    if request.args.get("edit"):
-        edit = query("SELECT * FROM news WHERE id=%s", (request.args["edit"],), one=True)
-    return render_template("news.html", rows=rows, edit=edit)
+    prompts = _get_setting("channel_topics", "")
+    draft = query("SELECT * FROM news WHERE NOT published ORDER BY created_at DESC LIMIT 1", one=True)
+    recent = query("SELECT * FROM news WHERE published ORDER BY published_at DESC LIMIT 10") or []
+    return render_template("news.html", prompts=prompts, draft=draft, recent=recent,
+                           default_prompts="\n".join(_DEFAULT_NEWS_PROMPTS))
 
 
 def dt_now_suffix() -> str:

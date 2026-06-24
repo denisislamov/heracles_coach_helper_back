@@ -14,14 +14,16 @@ from markupsafe import Markup
 
 import psycopg2
 import psycopg2.extras
+import requests
 from flask import (Flask, render_template, request, redirect, url_for,
-                   make_response, abort)
+                   make_response, abort, Response)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
 
 BOT_URL = os.environ.get("BOT_URL", "https://t.me/zhiromer_bot")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")   # для постоянной отдачи картинок по Telegram file_id
 SITE_NAME = "Жиромер"
 
 app = Flask(__name__)
@@ -183,6 +185,14 @@ def news_fields(row, lang):
     return title, body
 
 
+def news_image(row):
+    """Картинка новости: постоянный Telegram file_id (через прокси) или временный URL."""
+    fid = row.get("image_file_id")
+    if fid:
+        return url_for("news_image_proxy", file_id=fid)
+    return row.get("image_url")
+
+
 def render_body(text):
     """Простой рендер: абзацы по пустой строке, экранирование HTML."""
     parts = [p.strip() for p in (text or "").split("\n\n") if p.strip()]
@@ -236,7 +246,7 @@ def news_list():
         title, body = news_fields(r, lang)
         excerpt = (body or "").strip().split("\n\n")[0][:180]
         items.append({"slug": r["slug"], "title": title, "excerpt": excerpt,
-                      "image": r.get("image_url"),
+                      "image": news_image(r),
                       "date": r["published_at"] or r["created_at"]})
     return render_template("news_list.html", news=items)
 
@@ -249,8 +259,27 @@ def news_detail(slug):
         abort(404)
     title, body = news_fields(r, lang)
     return render_template("news_detail.html", title=title,
-                           body=render_body(body), image=r.get("image_url"),
+                           body=render_body(body), image=news_image(r),
                            date=r["published_at"] or r["created_at"])
+
+
+@app.route("/img/<file_id>")
+def news_image_proxy(file_id):
+    """Отдаёт картинку из Telegram по постоянному file_id (URL от OpenAI живут ~1ч)."""
+    if not BOT_TOKEN:
+        abort(404)
+    try:
+        info = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
+                            params={"file_id": file_id}, timeout=15).json()
+        path = info["result"]["file_path"]
+        r = requests.get(f"https://api.telegram.org/file/bot{BOT_TOKEN}/{path}", timeout=20)
+        r.raise_for_status()
+    except Exception:
+        abort(404)
+    ctype = r.headers.get("Content-Type", "image/jpeg")
+    resp = Response(r.content, content_type=ctype)
+    resp.headers["Cache-Control"] = "public, max-age=604800"   # картинка неизменна — кэшируем на неделю
+    return resp
 
 
 @app.route("/set-lang/<lang>")

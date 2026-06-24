@@ -1,81 +1,65 @@
 {% extends "base.html" %}
 {% set active = 'news' %}
 {% block content %}
-<h1>📰 Новости лендинга</h1>
+<h1>📰 Новости</h1>
+<p class="muted" style="max-width:680px">
+  Здесь только три шага: задаёшь <b>SEO-промты</b> → жмёшь <b>«Сгенерировать превью»</b> →
+  проверяешь и <b>публикуешь</b> на сайт и в Telegram-канал. Картинка генерируется автоматически.
+</p>
 
-<div class="card" style="margin-bottom:18px">
-  <h3 style="margin:0 0 12px">{{ 'Редактировать новость' if edit else 'Новая новость' }}</h3>
+<div class="card" style="margin-bottom:18px;max-width:680px">
+  <h3 style="margin:0 0 10px">1. Шаблоны промтов (SEO)</h3>
   <form method="post" style="display:flex;flex-direction:column;gap:10px">
-    <input type="hidden" name="action" value="save">
-    {% if edit %}<input type="hidden" name="id" value="{{ edit.id }}">{% endif %}
-    <div style="display:flex;flex-direction:column;gap:4px">
-      <label class="muted">Заголовок (RU)</label>
-      <input name="title_ru" required value="{{ edit.title_ru if edit else '' }}">
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px">
-      <label class="muted">Текст (RU) — абзацы разделяй пустой строкой</label>
-      <textarea name="body_ru" rows="5" required>{{ edit.body_ru if edit else '' }}</textarea>
-    </div>
-    <div class="grid2">
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label class="muted">Title (EN) — опц.</label>
-        <input name="title_en" value="{{ edit.title_en if edit else '' }}">
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label class="muted">Slug (для нового, опц.)</label>
-        <input name="slug" placeholder="авто из заголовка" {{ 'disabled' if edit }}>
-      </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px">
-      <label class="muted">Body (EN) — опц.</label>
-      <textarea name="body_en" rows="5">{{ edit.body_en if edit else '' }}</textarea>
-    </div>
-    <label><input type="checkbox" name="published" {{ 'checked' if edit and edit.published }}> Опубликовать</label>
+    <input type="hidden" name="action" value="save_prompts">
+    <label class="muted">По одному промту на строку — при генерации берётся случайный. Пусто = дефолтный набор.</label>
+    <textarea name="channel_topics" rows="8" placeholder="{{ default_prompts }}">{{ prompts }}</textarea>
+    <button class="primary" type="submit" style="align-self:flex-start">Сохранить промты</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:18px;max-width:680px">
+  <h3 style="margin:0 0 10px">2. Превью</h3>
+  <form method="post" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Генерирую…'">
+    <input type="hidden" name="action" value="gen_preview">
+    <button class="primary" type="submit">🪄 Сгенерировать превью</button>
+  </form>
+  <p class="muted" style="margin:8px 0 0">Берёт случайный промт, создаёт новость + картинку. ~10–20 сек. Пока не опубликовано — это только черновик.</p>
+
+  {% if draft %}
+  <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+    {% if draft.image_url %}<img src="{{ draft.image_url }}" style="max-width:100%;border-radius:12px;margin-bottom:12px">{% endif %}
+    <h3 style="margin:0 0 8px">{{ draft.title_ru }}</h3>
+    <p style="white-space:pre-wrap;margin:0 0 14px">{{ draft.body_ru }}</p>
     <div style="display:flex;gap:8px">
-      <button class="primary" type="submit">Сохранить</button>
-      {% if edit %}<a href="{{ url_for('news_admin') }}"><button type="button">Отмена</button></a>{% endif %}
+      <form method="post" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Публикую…'">
+        <input type="hidden" name="action" value="publish">
+        <input type="hidden" name="id" value="{{ draft.id }}">
+        <button class="primary" type="submit">✅ Опубликовать (сайт + канал)</button>
+      </form>
+      <form method="post" onsubmit="return confirm('Удалить этот черновик?')">
+        <input type="hidden" name="action" value="discard">
+        <input type="hidden" name="id" value="{{ draft.id }}">
+        <button type="submit">🗑 Удалить</button>
+      </form>
     </div>
-  </form>
+  </div>
+  {% else %}
+  <p class="muted" style="margin-top:12px">Превью пока нет — нажми кнопку выше.</p>
+  {% endif %}
 </div>
 
-<div class="card" style="margin-bottom:22px">
-  <h3 style="margin:0 0 10px">🤖 Черновик с помощью ИИ</h3>
-  <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-    <input type="hidden" name="action" value="ai_draft">
-    <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:280px">
-      <label class="muted">Тема / о чём новость</label>
-      <input name="topic" placeholder="напр. запустили распознавание по штрих-коду">
-    </div>
-    <button class="primary" type="submit">Сгенерировать черновик</button>
-  </form>
-  <p class="muted" style="margin:8px 0 0">ИИ создаст неопубликованный черновик (RU+EN) — потом проверишь и опубликуешь.</p>
-  <form method="post" style="margin-top:12px" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Генерирую…'">
-    <input type="hidden" name="action" value="gen_now">
-    <button class="primary" type="submit">🪄 Сгенерировать и опубликовать сейчас (сайт + канал)</button>
-  </form>
-  <p class="muted" style="margin:6px 0 0">Берёт случайный SEO-промт (из Настроек или дефолт), генерит новость + картинку и сразу публикует на сайт и в канал. Займёт ~10–20 сек.</p>
+{% if recent %}
+<div class="card" style="max-width:680px">
+  <h3 style="margin:0 0 10px">Опубликованные (последние 10)</h3>
+  <table>
+    <tr><th>Дата</th><th>Заголовок</th></tr>
+    {% for r in recent %}
+    <tr>
+      <td class="muted">{{ (r.published_at or r.created_at).strftime('%d.%m.%Y') }}</td>
+      <td>{{ r.title_ru }}</td>
+    </tr>
+    {% endfor %}
+  </table>
 </div>
-
-{% if rows %}
-<table>
-  <tr><th>Дата</th><th>Заголовок</th><th>Slug</th><th>Статус</th><th></th></tr>
-  {% for r in rows %}
-  <tr>
-    <td class="muted">{{ (r.published_at or r.created_at).strftime('%d.%m.%Y') }}</td>
-    <td>{{ r.title_ru }}{% if r.title_en %} <span class="muted">/ {{ r.title_en }}</span>{% endif %}</td>
-    <td class="muted"><code>{{ r.slug }}</code></td>
-    <td>{% if r.published %}<span class="badge done">опубл.</span>{% else %}<span class="badge new">черновик</span>{% endif %}</td>
-    <td style="display:flex;gap:6px">
-      <a href="{{ url_for('news_admin', edit=r.id) }}"><button type="button">✏️</button></a>
-      <form method="post"><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="{{ r.id }}">
-        <button type="submit">{{ 'Снять' if r.published else 'Опубл.' }}</button></form>
-      <form method="post" onsubmit="return confirm('Удалить новость?')"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="{{ r.id }}">
-        <button type="submit">🗑</button></form>
-    </td>
-  </tr>
-  {% endfor %}
-</table>
-{% else %}
-<p class="muted">Новостей пока нет.</p>
 {% endif %}
 {% endblock %}

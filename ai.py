@@ -381,7 +381,8 @@ async def generate_news(prompt: str, lang: str = "ru") -> Optional[dict]:
 
 
 async def generate_image(prompt: str) -> Optional[str]:
-    """Сгенерировать картинку (OpenAI Images) и вернуть URL, либо None при сбое."""
+    """Сгенерировать картинку (OpenAI Images). Вернуть URL (dall-e-3) или
+    data-URI с base64 (gpt-image-1), либо None при сбое."""
     try:
         resp = await _client.images.generate(
             model=config.OPENAI_IMAGE_MODEL,
@@ -389,7 +390,12 @@ async def generate_image(prompt: str) -> Optional[str]:
                     "no text, no watermark. " + prompt),
             size="1024x1024", n=1,
         )
-        return resp.data[0].url
+        d = resp.data[0]
+        if getattr(d, "url", None):
+            return d.url
+        if getattr(d, "b64_json", None):
+            return "data:image/png;base64," + d.b64_json
+        return None
     except Exception:
         return None
 

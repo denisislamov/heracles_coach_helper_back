@@ -68,7 +68,7 @@ services:
       - key: CHANNEL_ID
         sync: false            # @username или -100... канала для автопостинга (бот — админ канала)
       - key: OPENAI_IMAGE_MODEL
-        value: dall-e-3        # модель генерации картинок для постов
+        value: gpt-image-1     # картинки: gpt-image-1 (новый, base64) или dall-e-3 (если есть доступ)
 
   # --- Веб-админка (отдельный сервис, та же база) ---
   - type: web
@@ -94,7 +94,7 @@ services:
       - key: OPENAI_MODEL_NEWS
         value: gpt-4o          # модель для генерации новостей кнопкой «сейчас»
       - key: OPENAI_IMAGE_MODEL
-        value: dall-e-3        # картинки к новостям
+        value: gpt-image-1     # картинки к новостям (gpt-image-1 или dall-e-3)
       - key: CHANNEL_ID
         sync: false            # тот же канал, что у бота — для кнопки «опубликовать сейчас»
       - key: ADMIN_LOGIN

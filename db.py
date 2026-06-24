@@ -796,8 +796,10 @@ async def add_published_news(slug: str, title: str, body: str, image_url: str = 
 
 
 async def set_news_image_file_id(news_id: int, file_id: str) -> None:
+    # постоянный file_id заменяет временный URL/data-URI — чистим image_url
     async with _pool.acquire() as conn:
-        await conn.execute("UPDATE news SET image_file_id=$2 WHERE id=$1", news_id, file_id)
+        await conn.execute(
+            "UPDATE news SET image_file_id=$2, image_url=NULL WHERE id=$1", news_id, file_id)
 
 
 async def add_channel_post(topic: str, text: str, image_url: str) -> None:

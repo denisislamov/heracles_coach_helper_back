@@ -486,7 +486,12 @@ def _openai_image(prompt: str):
         if r.status_code != 200 or "data" not in body:
             err = (body.get("error") or {}).get("message") if isinstance(body, dict) else None
             return None, f"OpenAI {r.status_code}: {err or str(body)[:200]}"
-        return body["data"][0]["url"], None
+        d = body["data"][0]
+        if d.get("url"):                       # dall-e-3 → готовый URL (живёт ~1ч)
+            return d["url"], None
+        if d.get("b64_json"):                  # gpt-image-1 → base64; кладём как data-URI
+            return "data:image/png;base64," + d["b64_json"], None
+        return None, "OpenAI вернул пустой ответ (нет url/b64_json)"
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
 
@@ -551,16 +556,27 @@ def _publish_news(news_id):
             except Exception:
                 pass
             caption = f"{title}\n\n{text}\n\n👉 {bot_link}"[:1024]
-            resp = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
-                                 data={"chat_id": CHANNEL_ID, "photo": image_url, "caption": caption},
-                                 timeout=30).json()
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+            if image_url.startswith("data:"):        # gpt-image-1 → грузим байты файлом
+                import base64
+                photo = base64.b64decode(image_url.split(",", 1)[1])
+                resp = requests.post(url, data={"chat_id": CHANNEL_ID, "caption": caption},
+                                     files={"photo": ("news.png", photo, "image/png")},
+                                     timeout=60).json()
+            else:                                     # dall-e-3 → отдаём по URL
+                resp = requests.post(url, data={"chat_id": CHANNEL_ID, "photo": image_url,
+                                                "caption": caption}, timeout=30).json()
             if resp.get("ok"):
                 # самый крупный размер фото — постоянный file_id для сайта
                 file_id = resp["result"]["photo"][-1]["file_id"]
         except Exception as e:
             return False, f"Не удалось опубликовать в канал: {e}"
-    execute("""UPDATE news SET published=TRUE, published_at=now(),
-               image_file_id=COALESCE(%s, image_file_id) WHERE id=%s""", (file_id, news_id))
+    # если получили постоянный file_id — выкидываем тяжёлый data-URI из БД
+    if file_id:
+        execute("""UPDATE news SET published=TRUE, published_at=now(),
+                   image_file_id=%s, image_url=NULL WHERE id=%s""", (file_id, news_id))
+    else:
+        execute("UPDATE news SET published=TRUE, published_at=now() WHERE id=%s", (news_id,))
     where = "на сайт и в канал" if file_id else "на сайт"
     return True, f"✅ Опубликовано ({where})"
 

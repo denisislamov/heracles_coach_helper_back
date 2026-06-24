@@ -107,18 +107,25 @@ async def _job(context) -> None:
     except Exception as e:
         log.warning("channel: не удалось сохранить новость на сайт: %s", e)
 
+    # photo может быть URL (dall-e-3) или data-URI с base64 (gpt-image-1)
+    def _photo_arg():
+        if image_url.startswith("data:"):
+            import base64
+            return base64.b64decode(image_url.split(",", 1)[1])   # PTB примет bytes
+        return image_url
+
     # 2) в Telegram-канал (если задан и бот — админ)
     if config.CHANNEL_ID:
         caption = f"*{news['title']}*\n\n{news['text']}\n\n👉 " + await _bot_link(context)
         msg = None
         try:
-            msg = await context.bot.send_photo(config.CHANNEL_ID, photo=image_url,
+            msg = await context.bot.send_photo(config.CHANNEL_ID, photo=_photo_arg(),
                                                caption=caption[:1024], parse_mode="Markdown")
         except Exception as e:
             # повтор без Markdown, если разметка подвела
             try:
                 plain = f"{news['title']}\n\n{news['text']}\n\n👉 " + await _bot_link(context)
-                msg = await context.bot.send_photo(config.CHANNEL_ID, photo=image_url, caption=plain[:1024])
+                msg = await context.bot.send_photo(config.CHANNEL_ID, photo=_photo_arg(), caption=plain[:1024])
             except Exception as e2:
                 log.exception("channel: ошибка публикации в канал: %s", e2)
                 await _notify_admins(context, f"⚠️ Канал: не удалось опубликовать.\n{type(e2).__name__}: {e2}")
@@ -129,7 +136,8 @@ async def _job(context) -> None:
             except Exception as e:
                 log.warning("channel: не удалось сохранить file_id: %s", e)
 
-    await db.add_channel_post(prompt, news["title"], image_url)
+    log_url = None if image_url.startswith("data:") else image_url
+    await db.add_channel_post(prompt, news["title"], log_url)
     log.info("channel: опубликована новость «%s»", news["title"])
 
 

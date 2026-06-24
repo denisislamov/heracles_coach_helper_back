@@ -24,6 +24,7 @@ if DATABASE_URL.startswith("postgres://"):
 
 BOT_URL = os.environ.get("BOT_URL", "https://t.me/zhiromer_bot")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")   # для постоянной отдачи картинок по Telegram file_id
+CHANNEL_URL = os.environ.get("CHANNEL_URL", "https://t.me/kalorii_nauka")  # Telegram-канал
 SITE_NAME = "Жиромер"
 
 app = Flask(__name__)
@@ -87,8 +88,12 @@ T = {
         "plan_premplus_d": "Всё из Premium плюс расчёт белков/жиров/углеводов и нормы под твой спорт.",
         "plan_badge": "Популярный",
         "news_title": "Новости",
-        "news_empty": "Пока новостей нет. Загляни позже!",
+        "news_sub": "КБЖУ без мифов: коротко и по делу, по данным ВОЗ.",
+        "news_empty": "Пока новостей нет — подпишись на канал, чтобы не пропустить.",
         "news_all": "Все новости →",
+        "channel": "Канал",
+        "channel_cta": "Telegram-канал",
+        "channel_sub": "Мифы и правда о калориях и КБЖУ — новый разбор каждые пару дней.",
         "back": "← Ко всем новостям",
         "footer": "Жиромер — считай калории с умом. Подсчёт калорий и КБЖУ по фото в Telegram.",
         "read": "Читать →",
@@ -148,8 +153,12 @@ T = {
         "plan_premplus_d": "Everything in Premium plus protein/fat/carb targets tuned to your sport.",
         "plan_badge": "Popular",
         "news_title": "News",
-        "news_empty": "No news yet. Check back soon!",
+        "news_sub": "Macros without the myths: short, evidence-based, per WHO.",
+        "news_empty": "No news yet — follow the channel so you don't miss it.",
         "news_all": "All news →",
+        "channel": "Channel",
+        "channel_cta": "Telegram channel",
+        "channel_sub": "Myths vs facts about calories and macros — a fresh take every few days.",
         "back": "← Back to all news",
         "footer": "Zhiromer — count calories smartly. Calorie & macro tracking from a photo in Telegram.",
         "read": "Read →",
@@ -222,6 +231,7 @@ def _bot_cta() -> str:
 def inject_globals():
     lang = get_lang()
     return {"lang": lang, "tr": T[lang], "bot_url": _bot_cta(), "prices": get_prices(),
+            "channel_url": CHANNEL_URL,
             "site_name": SITE_NAME, "langs": LANGS, "now_year": dt.date.today().year}
 
 

@@ -123,6 +123,8 @@ services:
           property: connectionString
       - key: BOT_URL
         value: https://t.me/zhiromer_bot
+      - key: CHANNEL_URL
+        value: https://t.me/kalorii_nauka   # публичная ссылка на Telegram-канал для кнопок на сайте
       - key: BOT_TOKEN
         sync: false            # тот же токен бота — для отдачи картинок новостей по file_id (/img/<id>)
 

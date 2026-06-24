@@ -496,6 +496,15 @@ def _openai_image(prompt: str):
         return None, f"{type(e).__name__}: {e}"
 
 
+def _ensure_news_columns():
+    """Идемпотентно гарантируем нужные колонки (на случай, если бот ещё не накатил схему)."""
+    try:
+        execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS image_url TEXT")
+        execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS image_file_id TEXT")
+    except Exception:
+        pass
+
+
 def _gen_news_draft():
     """Сгенерировать новость (текст + картинка) и сохранить как ЧЕРНОВИК (не опубликован). (ok, msg)."""
     if not OPENAI_API_KEY:
@@ -584,6 +593,7 @@ def _publish_news(news_id):
 @app.route("/news", methods=["GET", "POST"])
 @login_required
 def news_admin():
+    _ensure_news_columns()
     if request.method == "POST":
         action = request.form.get("action")
         if action == "save_prompts":

@@ -49,6 +49,21 @@ h1, h2, h3 { line-height: 1.15; }
 .btn:hover { background: var(--green-dark); transform: translateY(-1px); }
 .btn-sm { padding: 7px 14px; border-radius: 9px; font-size: 14px; box-shadow: none; }
 .btn-lg { font-size: 18px; padding: 15px 30px; }
+.btn-ghost { background: transparent; color: var(--green); box-shadow: none;
+  border: 1.5px solid var(--green); }
+.btn-ghost:hover { background: rgba(91,191,106,.12); }
+.tg-ic { vertical-align: -2px; margin-right: 5px; }
+.nav-link { font-weight: 600; color: var(--muted); padding: 7px 4px; }
+.nav-link:hover { color: var(--txt); }
+
+/* Telegram-канал баннер в блоке новостей */
+.channel-band {
+  margin-top: 26px; padding: 22px 24px; border-radius: 16px;
+  background: linear-gradient(135deg, rgba(91,191,106,.12), rgba(91,191,106,.04));
+  border: 1px solid rgba(91,191,106,.25);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.channel-band p { margin: 0; font-weight: 600; }
 
 main { max-width: 1080px; margin: 0 auto; padding: 0 22px; }
 

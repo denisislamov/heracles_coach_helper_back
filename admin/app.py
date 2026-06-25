@@ -31,6 +31,7 @@ OPENAI_MODEL_ADMIN = os.environ.get("OPENAI_MODEL_ADMIN", "gpt-4o-mini")
 OPENAI_MODEL_NEWS = os.environ.get("OPENAI_MODEL_NEWS", "gpt-4o")
 OPENAI_IMAGE_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "dall-e-3")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
+SITE_URL = os.environ.get("SITE_URL", "https://zhiromer-site.onrender.com")
 
 APP_VERSION = "1.18.0"  # версия админки (синхронизируй с version.py бота)
 
@@ -593,7 +594,7 @@ def _publish_news(news_id):
                 bot_link = f"https://t.me/{me['result']['username']}?start=channel"
             except Exception:
                 pass
-            caption = f"{title}\n\n{text}\n\n👉 {bot_link}"[:1024]
+            caption = f"{title}\n\n{text}\n\n👉 Бот: {bot_link}\n🌐 Сайт: {SITE_URL}"[:1024]
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
             if image_url.startswith("data:"):        # gpt-image-1 → грузим байты файлом
                 import base64

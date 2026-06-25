@@ -67,6 +67,8 @@ services:
         value: "0"             # в проде всегда 0
       - key: CHANNEL_ID
         sync: false            # @username или -100... канала для автопостинга (бот — админ канала)
+      - key: SITE_URL
+        value: https://zhiromer-site.onrender.com   # ссылка на сайт в постах канала
       - key: OPENAI_IMAGE_MODEL
         value: gpt-image-1     # картинки: gpt-image-1 (новый, base64) или dall-e-3 (если есть доступ)
 
@@ -97,6 +99,8 @@ services:
         value: gpt-image-1     # картинки к новостям (gpt-image-1 или dall-e-3)
       - key: CHANNEL_ID
         sync: false            # тот же канал, что у бота — для кнопки «опубликовать сейчас»
+      - key: SITE_URL
+        value: https://zhiromer-site.onrender.com   # ссылка на сайт в постах канала
       - key: ADMIN_LOGIN
         sync: false            # логин (можно свой email)
       - key: ADMIN_PASSWORD

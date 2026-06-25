@@ -63,6 +63,11 @@
       <input name="channel_per_day" type="number" min="1" max="24" value="{{ cur.channel_per_day }}" style="width:120px">
     </div>
     <div style="display:flex;flex-direction:column;gap:4px;">
+      <label class="muted">Доля постов по свежим исследованиям, %</label>
+      <input name="channel_research_ratio" type="number" min="0" max="100" value="{{ cur.channel_research_ratio }}" style="width:120px">
+      <span class="muted" style="font-size:13px">0 = только промты «Миф/правда»; 100 = только исследования из научных лент. Остальное — микс. По умолчанию 40%.</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
       <label class="muted">Шаблоны промтов с SEO-словами (по одному на строку — берётся случайный; пусто = дефолтный набор)</label>
       <textarea name="channel_topics" rows="6" placeholder="Сколько калорий в шаурме. Ключи: счётчик калорий, КБЖУ&#10;Миф о питании по ВОЗ. Ключи: здоровое питание, дневник питания&#10;Как считать калории по фото. Ключи: счётчик калорий по фото">{{ cur.channel_topics }}</textarea>
     </div>

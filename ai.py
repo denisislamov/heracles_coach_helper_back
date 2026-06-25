@@ -373,16 +373,31 @@ _IMG_STYLES = [
 ]
 
 
-async def generate_news(prompt: str, lang: str = "ru") -> Optional[dict]:
-    """Сгенерировать новость для сайта и канала. {title, text, image_prompt} или None."""
+async def generate_news(prompt: str, lang: str = "ru", source: dict = None) -> Optional[dict]:
+    """Сгенерировать новость для сайта и канала. {title, text, image_prompt} или None.
+    Если передан source ({source,title,summary,link}) — пост опирается на этот РЕАЛЬНЫЙ
+    свежий материал (без выдуманных исследований)."""
+    system = (_NEWS_SYSTEM
+              + f"\nЯзык: {_LANG_NAME.get(lang, 'русском')}. "
+                'Верни строго JSON: {"title": <str>, "text": <str>, "image_prompt": <str англ.>}')
+    if source:
+        system += (
+            "\n\nНИЖЕ — РЕАЛЬНЫЙ свежий материал из научного источника. Опирайся ТОЛЬКО на него "
+            "и на общепринятый консенсус (ВОЗ/DRI). НЕ выдумывай других исследований, чисел и цитат. "
+            "Перескажи суть своими словами (не копируй дословно, без длинных цитат). "
+            "Не вставляй ссылку в текст — её добавят отдельно.")
+        user = (f"Источник: {source.get('source','')}\n"
+                f"Заголовок: {source.get('title','')}\n"
+                f"Краткое содержание: {source.get('summary','')}\n\n"
+                f"Задача: {prompt}")
+    else:
+        user = f"Промт: {prompt}"
     try:
         resp = await _client.chat.completions.create(
             model=config.OPENAI_MODEL,
             messages=[
-                {"role": "system", "content": _NEWS_SYSTEM
-                 + f"\nЯзык: {_LANG_NAME.get(lang, 'русском')}. "
-                   'Верни строго JSON: {"title": <str>, "text": <str>, "image_prompt": <str англ.>}'},
-                {"role": "user", "content": f"Промт: {prompt}"},
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
             ],
             response_format={"type": "json_object"},
             max_tokens=700,

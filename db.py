@@ -820,6 +820,14 @@ async def last_channel_post_at():
         return await conn.fetchval("SELECT max(created_at) FROM channel_posts")
 
 
+async def recent_channel_topics(limit: int = 30) -> list:
+    """Список последних использованных промтов-тем (для анти-повторов)."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT topic FROM channel_posts ORDER BY created_at DESC LIMIT $1", limit)
+        return [r["topic"] for r in rows if r["topic"]]
+
+
 async def get_setting(key: str) -> Optional[str]:
     async with _pool.acquire() as conn:
         return await conn.fetchval("SELECT value FROM settings WHERE key=$1", key)

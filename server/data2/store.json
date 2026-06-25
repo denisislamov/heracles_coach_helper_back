@@ -1,0 +1,30 @@
+{
+  "admins": [
+    {
+      "id": "11962a66-f456-4961-83c5-48f225b50628",
+      "email": "islamov.denis@gmail.com",
+      "passwordHash": "scrypt:K0EJvNlbuuLJm7xymmvrRg==:d7BfMZev+qxFDyPdphlBclUwMJGuqEYGPn9cuiulNjavS2yY4BJM5dVf4Ap5oZtFSq4GZMfss/0/ByTwsM4l6g==",
+      "createdAt": "2026-06-25T17:13:15.814Z",
+      "disabled": false
+    }
+  ],
+  "config": {
+    "ai": {
+      "provider": "none",
+      "openai": {
+        "apiKeyEnc": null,
+        "model": "gpt-4o-mini"
+      },
+      "claude": {
+        "apiKeyEnc": null,
+        "model": "claude-3-5-sonnet-latest"
+      }
+    },
+    "prompts": {
+      "system": "You are the Heracles AI health coach. You give concise, practical recovery, sleep,\ntraining and lifestyle guidance for adults on TRT/ED/weight-loss programmes. Ground\nadvice in the user's supplied metrics when relevant. Be supportive and specific, not\ngeneric.\nSafety: you are not a doctor; never diagnose, never change prescribed medication, and\nadvise contacting their clinician for medical concerns.\nCitations: you may ONLY cite from the provided evidence list, using their ids. Never\ninvent sources.\nRespond ONLY with JSON: {\"text\": string, \"citationIds\": string[]}.",
+      "userTemplate": "User metrics:\n{{metrics}}\n\nEvidence you may cite (id — title):\n{{evidence}}\n\nUser question:\n{{question}}"
+    },
+    "updatedAt": "2026-06-25T17:13:15.789Z",
+    "updatedBy": null
+  }
+}

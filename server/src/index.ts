@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
 import { env } from './env.js';
@@ -23,7 +24,15 @@ app.use('/admin/auth', authRouter);
 app.use('/admin', adminRouter);
 app.use('/api/coach', coachRouter);
 
-// 404 fallback
+// Static admin web UI (served same-origin -> no CORS needed).
+// public/ sits next to dist/ at the server root.
+const publicDir = fileURLToPath(new URL('../public', import.meta.url));
+app.use(express.static(publicDir));
+app.get('/', (_req, res) => {
+  res.sendFile('index.html', { root: publicDir });
+});
+
+// 404 fallback (JSON for API paths)
 app.use((_req, res) => {
   res.status(404).json({ error: 'not_found' });
 });

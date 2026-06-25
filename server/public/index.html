@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Heracles Admin</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --card: #1a1d24;
+        --border: #2a2f3a;
+        --text: #e6e8ec;
+        --muted: #9aa3b2;
+        --accent: #4f8cff;
+        --danger: #ff5c5c;
+        --ok: #3ddc97;
+        --input: #11141a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      .wrap { max-width: 760px; margin: 0 auto; padding: 24px; }
+      h1 { font-size: 24px; margin: 0; }
+      h2 { font-size: 17px; margin: 0 0 4px; }
+      .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      .spacer { flex: 1; }
+      .muted { color: var(--muted); font-size: 13px; }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        margin: 16px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      label { color: var(--muted); font-size: 13px; display: block; margin-bottom: 6px; }
+      input, textarea, select {
+        width: 100%;
+        background: var(--input);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        padding: 10px 12px;
+        font: inherit;
+      }
+      textarea { min-height: 130px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+      button {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 16px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+      button.danger { background: var(--danger); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      a.link { color: var(--accent); font-weight: 600; cursor: pointer; text-decoration: none; }
+      .pill {
+        padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border);
+        color: var(--muted); cursor: pointer; font-weight: 600; user-select: none;
+      }
+      .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .err { color: var(--danger); font-size: 13px; }
+      .ok { color: var(--ok); font-size: 13px; word-break: break-all; }
+      .hidden { display: none !important; }
+      .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+      .tag.on { color: var(--ok); border-color: var(--ok); }
+      .tag.off { color: var(--muted); }
+      code { background: var(--input); padding: 1px 5px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <!-- LOGIN -->
+      <div id="loginView">
+        <h1>Heracles Admin</h1>
+        <div class="card">
+          <div>
+            <label>Backend URL</label>
+            <input id="apiUrl" placeholder="https://heracles-admin-server.onrender.com" />
+          </div>
+          <div>
+            <label>Email</label>
+            <input id="email" autocomplete="username" placeholder="islamov.denis@gmail.com" />
+          </div>
+          <div>
+            <label>Пароль</label>
+            <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+          </div>
+          <div id="loginErr" class="err"></div>
+          <button id="loginBtn">Войти</button>
+        </div>
+        <p class="muted">Ключи провайдеров никогда не показываются — только статус «ключ задан».</p>
+      </div>
+
+      <!-- APP -->
+      <div id="appView" class="hidden">
+        <div class="row">
+          <h1>Heracles Admin</h1>
+          <div class="spacer"></div>
+          <a class="link" id="navConfig">Конфиг</a>
+          <a class="link" id="navAdmins">Админы</a>
+          <a class="link" id="logoutBtn">Выйти</a>
+        </div>
+        <p class="muted" id="whoami"></p>
+
+        <!-- CONFIG TAB -->
+        <div id="configTab">
+          <div class="card">
+            <h2>Провайдер ИИ</h2>
+            <div class="row" id="providerPills">
+              <span class="pill" data-p="none">none</span>
+              <span class="pill" data-p="openai">openai</span>
+              <span class="pill" data-p="claude">claude</span>
+            </div>
+            <p class="muted">«none» → приложение использует локальный мок-коуч. Иначе бэкенд вызывает выбранного провайдера.</p>
+          </div>
+
+          <div class="card">
+            <h2>OpenAI <span id="openaiTag" class="tag off">нет ключа</span></h2>
+            <div>
+              <label>Модель</label>
+              <input id="openaiModel" />
+            </div>
+            <div>
+              <label>API-ключ (вставьте новый, чтобы сохранить)</label>
+              <input id="openaiKey" type="password" placeholder="sk-..." />
+            </div>
+            <div class="row">
+              <button data-prov="openai" class="saveKey">Сохранить ключ</button>
+              <button data-prov="openai" class="clearKey ghost">Очистить ключ</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Claude (Anthropic) <span id="claudeTag" class="tag off">нет ключа</span></h2>
+            <div>
+              <label>Модель</label>
+              <input id="claudeModel" />
+            </div>
+            <div>
+              <label>API-ключ (вставьте новый, чтобы сохранить)</label>
+              <input id="claudeKey" type="password" placeholder="sk-ant-..." />
+            </div>
+            <div class="row">
+              <button data-prov="claude" class="saveKey">Сохранить ключ</button>
+              <button data-prov="claude" class="clearKey ghost">Очистить ключ</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Промпты</h2>
+            <div>
+              <label>System</label>
+              <textarea id="promptSystem"></textarea>
+            </div>
+            <div>
+              <label>User template — плейсхолдеры: <code>{{metrics}}</code> <code>{{evidence}}</code> <code>{{question}}</code></label>
+              <textarea id="promptTemplate"></textarea>
+            </div>
+          </div>
+
+          <div id="configMsg"></div>
+          <div class="row">
+            <button id="saveConfigBtn">Сохранить всё</button>
+            <button id="reloadConfigBtn" class="ghost">Перезагрузить</button>
+          </div>
+        </div>
+
+        <!-- ADMINS TAB -->
+        <div id="adminsTab" class="hidden">
+          <div class="card">
+            <h2>Создать админа</h2>
+            <div><label>Email</label><input id="newEmail" placeholder="email" /></div>
+            <div><label>Пароль (мин. 8)</label><input id="newPassword" type="password" /></div>
+            <button id="createAdminBtn">Создать</button>
+          </div>
+          <div id="adminsMsg"></div>
+          <div id="adminsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ---------- state ----------
+      const LS = {
+        get url() { return localStorage.getItem("ha_url") || window.location.origin; },
+        set url(v) { localStorage.setItem("ha_url", v); },
+        get token() { return localStorage.getItem("ha_token"); },
+        set token(v) { v ? localStorage.setItem("ha_token", v) : localStorage.removeItem("ha_token"); },
+        get email() { return localStorage.getItem("ha_email"); },
+        set email(v) { v ? localStorage.setItem("ha_email", v) : localStorage.removeItem("ha_email"); },
+      };
+      let config = null;
+      let patch = {};
+
+      const $ = (id) => document.getElementById(id);
+
+      async function apiCall(path, opts = {}) {
+        const headers = {};
+        if (opts.body !== undefined) headers["content-type"] = "application/json";
+        if (LS.token) headers["authorization"] = "Bearer " + LS.token;
+        const res = await fetch(LS.url + path, {
+          method: opts.method || "GET",
+          headers,
+          body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        });
+        if (res.status === 401) { logout(); throw new Error("unauthorized"); }
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : null;
+        if (!res.ok) throw Object.assign(new Error((data && data.error) || "error_" + res.status), { status: res.status, data });
+        return data;
+      }
+
+      // ---------- views ----------
+      function showLogin() {
+        $("appView").classList.add("hidden");
+        $("loginView").classList.remove("hidden");
+        $("apiUrl").value = LS.url;
+      }
+      function showApp() {
+        $("loginView").classList.add("hidden");
+        $("appView").classList.remove("hidden");
+        $("whoami").textContent = "Вы вошли как " + (LS.email || "—");
+        showTab("config");
+        loadConfig();
+      }
+      function showTab(t) {
+        $("configTab").classList.toggle("hidden", t !== "config");
+        $("adminsTab").classList.toggle("hidden", t !== "admins");
+        if (t === "admins") loadAdmins();
+      }
+
+      // ---------- login ----------
+      $("loginBtn").onclick = async () => {
+        $("loginErr").textContent = "";
+        LS.url = $("apiUrl").value.trim().replace(/\/+$/, "");
+        try {
+          const r = await apiCall("/admin/auth/login", {
+            method: "POST",
+            body: { email: $("email").value.trim(), password: $("password").value },
+          });
+          LS.token = r.token;
+          LS.email = r.admin.email;
+          showApp();
+        } catch (e) {
+          $("loginErr").textContent =
+            e.status === 401 ? "Неверный email или пароль." : "Не удалось войти. Проверьте Backend URL.";
+        }
+      };
+      $("password").addEventListener("keydown", (e) => { if (e.key === "Enter") $("loginBtn").click(); });
+
+      function logout() {
+        LS.token = null;
+        LS.email = null;
+        config = null; patch = {};
+        showLogin();
+      }
+      $("logoutBtn").onclick = logout;
+      $("navConfig").onclick = () => showTab("config");
+      $("navAdmins").onclick = () => showTab("admins");
+
+      // ---------- config ----------
+      function provider() { return patch.ai?.provider ?? config.ai.provider; }
+      function mergeAi(prov, value) {
+        patch.ai = patch.ai || {};
+        patch.ai[prov] = { ...(patch.ai[prov] || {}), ...value };
+      }
+
+      function renderConfig() {
+        // provider pills
+        document.querySelectorAll("#providerPills .pill").forEach((el) => {
+          el.classList.toggle("active", el.dataset.p === provider());
+        });
+        // models
+        $("openaiModel").value = patch.ai?.openai?.model ?? config.ai.openai.model;
+        $("claudeModel").value = patch.ai?.claude?.model ?? config.ai.claude.model;
+        // key tags
+        setTag("openai", config.ai.openai.hasKey);
+        setTag("claude", config.ai.claude.hasKey);
+        // prompts
+        $("promptSystem").value = patch.prompts?.system ?? config.prompts.system;
+        $("promptTemplate").value = patch.prompts?.userTemplate ?? config.prompts.userTemplate;
+      }
+      function setTag(prov, hasKey) {
+        const el = $(prov + "Tag");
+        el.textContent = hasKey ? "ключ задан" : "нет ключа";
+        el.className = "tag " + (hasKey ? "on" : "off");
+      }
+
+      async function loadConfig() {
+        $("configMsg").textContent = "";
+        try {
+          config = await apiCall("/admin/config");
+          patch = {};
+          renderConfig();
+        } catch {
+          $("configMsg").innerHTML = '<span class="err">Не удалось загрузить конфиг.</span>';
+        }
+      }
+      $("reloadConfigBtn").onclick = loadConfig;
+
+      document.querySelectorAll("#providerPills .pill").forEach((el) => {
+        el.onclick = () => { patch.ai = patch.ai || {}; patch.ai.provider = el.dataset.p; renderConfig(); };
+      });
+      $("openaiModel").oninput = (e) => mergeAi("openai", { model: e.target.value });
+      $("claudeModel").oninput = (e) => mergeAi("claude", { model: e.target.value });
+      $("promptSystem").oninput = (e) => { patch.prompts = patch.prompts || {}; patch.prompts.system = e.target.value; };
+      $("promptTemplate").oninput = (e) => { patch.prompts = patch.prompts || {}; patch.prompts.userTemplate = e.target.value; };
+
+      document.querySelectorAll(".saveKey").forEach((btn) => {
+        btn.onclick = () => {
+          const prov = btn.dataset.prov;
+          const input = $(prov + "Key");
+          if (!input.value) return;
+          mergeAi(prov, { apiKey: input.value });
+          input.value = "";
+          $("configMsg").innerHTML = '<span class="muted">Ключ ' + prov + ' будет записан при «Сохранить всё».</span>';
+        };
+      });
+      document.querySelectorAll(".clearKey").forEach((btn) => {
+        btn.onclick = () => {
+          const prov = btn.dataset.prov;
+          mergeAi(prov, { apiKey: null });
+          $("configMsg").innerHTML = '<span class="muted">Ключ ' + prov + ' будет очищен при «Сохранить всё».</span>';
+        };
+      });
+
+      $("saveConfigBtn").onclick = async () => {
+        $("configMsg").textContent = "";
+        try {
+          config = await apiCall("/admin/config", { method: "PUT", body: patch });
+          patch = {};
+          renderConfig();
+          $("configMsg").innerHTML = '<span class="ok">Сохранено.</span>';
+        } catch {
+          $("configMsg").innerHTML = '<span class="err">Ошибка сохранения.</span>';
+        }
+      };
+
+      // ---------- admins ----------
+      async function loadAdmins() {
+        $("adminsList").innerHTML = '<p class="muted">Загрузка…</p>';
+        try {
+          const admins = await apiCall("/admin/admins");
+          $("adminsList").innerHTML = "";
+          admins.forEach((a) => $("adminsList").appendChild(adminCard(a)));
+        } catch {
+          $("adminsList").innerHTML = '<p class="err">Не удалось загрузить админов.</p>';
+        }
+      }
+      function adminCard(a) {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML =
+          '<h2 style="margin:0">' + a.email + "</h2>" +
+          '<p class="muted">создан ' + new Date(a.createdAt).toLocaleString() +
+          " · " + (a.disabled ? "заблокирован" : "активен") + "</p>";
+        const row = document.createElement("div");
+        row.className = "row";
+        const reset = document.createElement("button");
+        reset.className = "ghost";
+        reset.textContent = "Сбросить пароль";
+        reset.onclick = () => resetPassword(a.id);
+        const toggle = document.createElement("button");
+        toggle.textContent = a.disabled ? "Разблокировать" : "Заблокировать";
+        if (!a.disabled) toggle.className = "danger";
+        toggle.onclick = () => setDisabled(a, !a.disabled);
+        row.append(reset, toggle);
+        div.appendChild(row);
+        return div;
+      }
+      async function resetPassword(id) {
+        $("adminsMsg").textContent = "";
+        try {
+          const r = await apiCall("/admin/admins/" + id + "/reset-password", { method: "POST", body: {} });
+          $("adminsMsg").innerHTML = r.password
+            ? '<span class="ok">Новый пароль (показан один раз): ' + r.password + "</span>"
+            : '<span class="ok">Пароль сброшен.</span>';
+        } catch {
+          $("adminsMsg").innerHTML = '<span class="err">Не удалось сбросить пароль.</span>';
+        }
+      }
+      async function setDisabled(a, disabled) {
+        $("adminsMsg").textContent = "";
+        try {
+          await apiCall("/admin/admins/" + a.id + "/disable", { method: "POST", body: { disabled } });
+          loadAdmins();
+        } catch (e) {
+          $("adminsMsg").innerHTML =
+            '<span class="err">' +
+            (e.status === 409 ? "Нельзя заблокировать последнего активного админа." : "Не удалось изменить статус.") +
+            "</span>";
+        }
+      }
+      $("createAdminBtn").onclick = async () => {
+        $("adminsMsg").textContent = "";
+        try {
+          await apiCall("/admin/admins", {
+            method: "POST",
+            body: { email: $("newEmail").value.trim(), password: $("newPassword").value },
+          });
+          $("newEmail").value = ""; $("newPassword").value = "";
+          $("adminsMsg").innerHTML = '<span class="ok">Админ создан.</span>';
+          loadAdmins();
+        } catch (e) {
+          $("adminsMsg").innerHTML =
+            '<span class="err">' +
+            (e.status === 409 ? "Такой email уже существует." : "Не удалось создать (пароль мин. 8 символов).") +
+            "</span>";
+        }
+      };
+
+      // ---------- boot ----------
+      if (LS.token) showApp(); else showLogin();
+    </script>
+  </body>
+</html>

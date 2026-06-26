@@ -4,9 +4,16 @@ import datetime as _dt
 import pytz
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+import config
 import i18n
 from i18n import t
 import payments
+
+
+def channel_bonus_available() -> bool:
+    """Показывать ли бонус «неделя Premium за подписку на канал»."""
+    return bool(payments.monetization_enabled() and config.CHANNEL_ID
+                and config.CHANNEL_BONUS_DAYS > 0)
 
 WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
@@ -48,7 +55,18 @@ def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
         rows.append([InlineKeyboardButton(t("btn_premium", lang), callback_data="premium")])
     if payments.referral_enabled():
         rows.append([InlineKeyboardButton(t("btn_invite", lang), callback_data="invite")])
+    if channel_bonus_available():
+        rows.append([InlineKeyboardButton(t("btn_chan_bonus", lang), callback_data="chan_bonus")])
     return InlineKeyboardMarkup(rows)
+
+
+def channel_bonus_menu(lang: str = "ru") -> InlineKeyboardMarkup:
+    """Кнопки: подписаться на канал (ссылка) + проверить подписку."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("chan_bonus_join_btn", lang), url=config.CHANNEL_URL)],
+        [InlineKeyboardButton(t("chan_bonus_check_btn", lang), callback_data="chan_check")],
+        [InlineKeyboardButton(t("btn_back_menu", lang), callback_data="menu")],
+    ])
 
 
 def extras_menu(lang: str = "ru") -> InlineKeyboardMarkup:

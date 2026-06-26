@@ -42,6 +42,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_until TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_count_date  DATE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_count_today INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS credits        INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS channel_bonus_at TIMESTAMPTZ;  -- когда выдан бонус за подписку на канал
 
 -- Промокоды.
 CREATE TABLE IF NOT EXISTS promo_codes (
@@ -475,6 +476,32 @@ async def grant_premium_days(user_id: int, days: int) -> None:
                WHERE user_id = $1""",
             user_id, days,
         )
+
+
+async def channel_bonus_claimed(user_id: int) -> bool:
+    """Был ли уже выдан бонус Premium за подписку на канал."""
+    async with _pool.acquire() as conn:
+        return bool(await conn.fetchval(
+            "SELECT channel_bonus_at IS NOT NULL FROM users WHERE user_id=$1", user_id))
+
+
+async def grant_channel_bonus(user_id: int, days: int) -> bool:
+    """Выдать бонус за подписку (один раз). True — выдано, False — уже был."""
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            claimed = await conn.fetchval(
+                "SELECT channel_bonus_at IS NOT NULL FROM users WHERE user_id=$1 FOR UPDATE",
+                user_id)
+            if claimed:
+                return False
+            await conn.execute(
+                """UPDATE users
+                   SET premium_until = GREATEST(COALESCE(premium_until, now()), now())
+                                       + make_interval(days => $2),
+                       channel_bonus_at = now()
+                   WHERE user_id = $1""",
+                user_id, days)
+            return True
 
 
 async def add_credits(user_id: int, n: int) -> None:

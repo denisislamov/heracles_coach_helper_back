@@ -233,6 +233,41 @@ async def invite_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _invite_text(context, update.effective_user.id, user["lang"]), parse_mode="Markdown")
 
 
+async def _post_onboarding(update, context, uid: int, lang: str):
+    """После онбординга: меню + (если доступно) предложение бонуса за подписку на канал."""
+    msg = update.effective_message
+    await msg.reply_text(t("menu", lang), reply_markup=kb.main_menu(lang))
+    try:
+        if kb.channel_bonus_available() and not await db.channel_bonus_claimed(uid):
+            await msg.reply_text(t("chan_bonus_intro", lang, days=config.CHANNEL_BONUS_DAYS),
+                                 parse_mode="Markdown", reply_markup=kb.channel_bonus_menu(lang))
+    except Exception as e:
+        log.warning("post_onboarding: не удалось предложить бонус: %s", e)
+
+
+async def _check_channel_bonus(update, context, uid: int, lang: str):
+    """Проверить подписку на канал и выдать неделю Premium (один раз)."""
+    q = update.callback_query
+    days = config.CHANNEL_BONUS_DAYS
+    try:
+        member = await context.bot.get_chat_member(config.CHANNEL_ID, uid)
+        subscribed = member.status in ("member", "administrator", "creator")
+    except Exception as e:
+        log.warning("chan_bonus: не удалось проверить подписку %s: %s", uid, e)
+        await q.message.reply_text(t("chan_bonus_err", lang))
+        return
+    if not subscribed:
+        await q.message.reply_text(t("chan_bonus_need_sub", lang))
+        return
+    granted = await db.grant_channel_bonus(uid, days)
+    if granted:
+        await q.edit_message_text(t("chan_bonus_ok", lang, days=days),
+                                  reply_markup=kb.back_to_menu(lang))
+    else:
+        await q.edit_message_text(t("chan_bonus_already", lang),
+                                  reply_markup=kb.back_to_menu(lang))
+
+
 async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.ensure_user(update.effective_user.id, update.effective_user.username)
     user = await db.get_user(update.effective_user.id)
@@ -950,7 +985,7 @@ async def _finish_goal_setup(update, context):
     uid = update.effective_user.id
     await db.update_settings(uid, onboarded=True)
     lang = (await db.get_user(uid))["lang"]
-    if context.user_data.pop("onboarding", False):
+    if context.user_data.get("onboarding"):   # флаг держим до шага напоминаний
         await update.effective_message.reply_text(t("rem_q", lang),
                                                    reply_markup=kb.reminders_onboarding(lang))
     else:
@@ -1308,6 +1343,17 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await q.message.reply_text(t("invite_off", lang))
 
+    elif data == "chan_bonus":
+        if await db.channel_bonus_claimed(uid):
+            await q.edit_message_text(t("chan_bonus_already", lang), reply_markup=kb.back_to_menu(lang))
+        else:
+            await q.edit_message_text(
+                t("chan_bonus_intro", lang, days=config.CHANNEL_BONUS_DAYS),
+                parse_mode="Markdown", reply_markup=kb.channel_bonus_menu(lang))
+
+    elif data == "chan_check":
+        await _check_channel_bonus(update, context, uid, lang)
+
     elif data == "feedback":
         await feedback.open_menu(q, lang)
     elif data == "fb_bug":
@@ -1452,10 +1498,14 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await db.update_settings(uid, reminders_on=True)
         await reminders.schedule_user(context.application, await db.get_user(uid))
         await q.edit_message_text(t("rem_done_on", lang))
+        if context.user_data.pop("onboarding", False):
+            await _post_onboarding(update, context, uid, lang)
     elif data == "rem_off":
         await db.update_settings(uid, reminders_on=False)
         await reminders.schedule_user(context.application, await db.get_user(uid))
         await q.edit_message_text(t("rem_done_off", lang))
+        if context.user_data.pop("onboarding", False):
+            await _post_onboarding(update, context, uid, lang)
     elif data == "toggle_rem":
         await db.update_settings(uid, reminders_on=not user["reminders_on"])
         await reminders.schedule_user(context.application, await db.get_user(uid))

@@ -67,6 +67,10 @@ services:
         value: "0"             # в проде всегда 0
       - key: CHANNEL_ID
         sync: false            # @username или -100... канала для автопостинга (бот — админ канала)
+      - key: CHANNEL_URL
+        value: https://t.me/kalorii_nauka           # публичная ссылка на канал (кнопка «подписаться»)
+      - key: CHANNEL_BONUS_DAYS
+        value: "7"             # дней Premium за подписку на канал (0 = бонус выкл)
       - key: SITE_URL
         value: https://zhiromer-site.onrender.com   # ссылка на сайт в постах канала
       - key: OPENAI_IMAGE_MODEL

@@ -52,6 +52,16 @@ _STR = {
         "btn_extras": "✨ Возможности",
         "btn_premium": "⭐ Premium",
         "btn_invite": "👥 Пригласить друга",
+        "btn_chan_bonus": "🎁 Неделя Premium за подписку",
+        "chan_bonus_intro": "🎁 *Неделя Premium в подарок!*\n\nПодпишись на наш канал — и получи "
+                            "{days} дней Premium бесплатно.\n\n1️⃣ Нажми «Подписаться»\n2️⃣ Вернись и "
+                            "нажми «Я подписался»\n\nБот проверит подписку и начислит бонус.",
+        "chan_bonus_join_btn": "📣 Подписаться на канал",
+        "chan_bonus_check_btn": "✅ Я подписался",
+        "chan_bonus_ok": "🎉 Готово! Начислили {days} дней Premium. Спасибо, что с нами!",
+        "chan_bonus_already": "Бонус за подписку уже был получен ранее 🙂",
+        "chan_bonus_need_sub": "Пока не вижу тебя среди подписчиков канала. Подпишись и нажми «Я подписался» ещё раз.",
+        "chan_bonus_err": "Не удалось проверить подписку. Попробуй чуть позже.",
         "btn_settings": "⚙️ Настройки",
         "btn_feedback": "🛟 Обратная связь",
         "btn_back": "⬅️ Назад",
@@ -413,6 +423,16 @@ _STR = {
         "btn_extras": "✨ Features",
         "btn_premium": "⭐ Premium",
         "btn_invite": "👥 Invite a friend",
+        "btn_chan_bonus": "🎁 A week of Premium for subscribing",
+        "chan_bonus_intro": "🎁 *A free week of Premium!*\n\nSubscribe to our channel and get "
+                            "{days} days of Premium for free.\n\n1️⃣ Tap “Subscribe”\n2️⃣ Come back and "
+                            "tap “I subscribed”\n\nThe bot will verify and grant the bonus.",
+        "chan_bonus_join_btn": "📣 Subscribe to the channel",
+        "chan_bonus_check_btn": "✅ I subscribed",
+        "chan_bonus_ok": "🎉 Done! Added {days} days of Premium. Thanks for joining us!",
+        "chan_bonus_already": "You've already claimed the subscription bonus 🙂",
+        "chan_bonus_need_sub": "I don't see you among the channel subscribers yet. Subscribe and tap “I subscribed” again.",
+        "chan_bonus_err": "Couldn't verify the subscription. Please try again a bit later.",
         "btn_settings": "⚙️ Settings",
         "btn_feedback": "🛟 Feedback",
         "btn_back": "⬅️ Back",

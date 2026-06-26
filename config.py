@@ -23,6 +23,10 @@ OPENAI_IMAGE_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "dall-e-3")
 # --- Автопостинг в Telegram-канал ---
 # ID или @username канала, где бот — администратор (напр. @zhiromer или -1001234567890).
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
+# Публичная ссылка на канал (для кнопки «подписаться» в боте).
+CHANNEL_URL = os.environ.get("CHANNEL_URL", "https://t.me/kalorii_nauka")
+# Сколько дней Premium дарим за подписку на канал (0 = бонус выключен).
+CHANNEL_BONUS_DAYS = int(os.environ.get("CHANNEL_BONUS_DAYS", "7"))
 # Публичный адрес сайта — добавляется ссылкой в посты канала.
 SITE_URL = os.environ.get("SITE_URL", "https://zhiromer-site.onrender.com")
 

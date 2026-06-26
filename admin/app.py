@@ -33,7 +33,7 @@ OPENAI_IMAGE_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "dall-e-3")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 SITE_URL = os.environ.get("SITE_URL", "https://zhiromer-site.onrender.com")
 
-APP_VERSION = "1.19.0"  # версия админки (синхронизируй с version.py бота)
+APP_VERSION = "1.20.0"  # версия админки (синхронизируй с version.py бота)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-please")

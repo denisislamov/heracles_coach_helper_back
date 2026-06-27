@@ -1,7 +1,9 @@
 node_modules/
 dist/
 .env
-data/
+# runtime JSON store only — NOT server/src/data (source files)
+/data/
+server/data/
 .expo/
 web-build/
 *.log

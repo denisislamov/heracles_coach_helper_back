@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
-data/
+# runtime JSON store only (anchored) — NOT src/data, which holds source files
+/data/
 *.log
 .DS_Store

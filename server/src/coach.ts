@@ -145,15 +145,17 @@ function asBiomarkers(items?: Record<string, unknown>[]): string {
   if (!items || !items.length) return 'not yet measured';
   return items
     .map((b) => {
-      const name = b.code ?? b.name ?? 'marker';
+      const label = String(b.label ?? b.code ?? b.name ?? 'marker');
       const value = b.value ?? '';
       const unit = b.unit ?? '';
-      const ref =
-        b.ref && typeof b.ref === 'object'
-          ? `, ref ${(b.ref as Record<string, unknown>).min}-${(b.ref as Record<string, unknown>).max}`
-          : '';
-      const status = b.status ? `, ${b.status}` : '';
-      return `${name}: ${value} ${unit}`.trim() + ` (${`${ref}${status}`.replace(/^, /, '')})`;
+      const meta: string[] = [];
+      if (b.ref && typeof b.ref === 'object') {
+        const r = b.ref as Record<string, unknown>;
+        if (r.min != null || r.max != null) meta.push(`ref ${r.min}–${r.max}`);
+      }
+      if (b.status) meta.push(String(b.status));
+      const tail = meta.length ? ` (${meta.join(', ')})` : '';
+      return `${label}: ${value} ${unit}`.replace(/\s+/g, ' ').trim() + tail;
     })
     .join('\n');
 }
@@ -177,6 +179,21 @@ function asBioAge(b?: Record<string, unknown>): string {
 
 function asHealthScore(h?: Record<string, unknown>): string {
   if (!h || !Object.keys(h).length) return 'not yet measured';
+  // v1.13 shape: { pillars: [{ pillar, label, state, score }], notYetMeasured: [] }
+  if (Array.isArray(h.pillars)) {
+    const lines = (h.pillars as Record<string, unknown>[]).map((p) => {
+      const label = String(p.label ?? p.pillar ?? 'pillar');
+      const score = p.score == null ? 'n/a' : p.score;
+      const state = p.state ? ` (${p.state})` : '';
+      return `${label} ${score}${state}`;
+    });
+    let out = lines.join(', ');
+    if (Array.isArray(h.notYetMeasured) && h.notYetMeasured.length) {
+      out += `; not yet measured: ${(h.notYetMeasured as unknown[]).join(', ')}`;
+    }
+    return out || 'not yet measured';
+  }
+  // fallback: flat object
   return Object.entries(h)
     .map(([k, v]) => `${k} ${v}`)
     .join(', ');
@@ -247,6 +264,50 @@ export function parseReply(raw: string, allowedIds: string[]): CoachReply {
   return { text: obj.text, citationIds };
 }
 
+// ---- Prompt assembly ----
+
+export interface AssembledPrompt {
+  entryId: string;
+  system: string;
+  user: string;
+  allowedIds: string[];
+}
+
+/**
+ * Build the final system + user prompt from the catalogue and the request
+ * context. Maps the v1.13 context contract into the template placeholders.
+ * Pure and side-effect free, so it is unit-testable without a network call.
+ */
+export function buildCoachPrompt(
+  catalog: CoachPromptCatalog,
+  provider: 'openai' | 'claude',
+  message: string,
+  ctx: CoachRequest['context'],
+): AssembledPrompt {
+  const entry = selectPrompt(catalog, message, ctx.questionClass, ctx.promptId);
+  const evidence = ctx.evidence ?? [];
+
+  const system = catalog.systemPrompt[provider];
+  const userBlock = renderTemplate(catalog.contextBlockTemplate, {
+    USER_QUESTION: message,
+    PROFILE: asProfile(ctx.profile),
+    BIOMARKERS: asBiomarkers(ctx.biomarkers),
+    BIO_AGE: asBioAge(ctx.bioAge),
+    HEALTH_SCORE: asHealthScore(ctx.healthScore),
+    WEARABLE: asWearable(ctx.wearable, ctx.metrics),
+    TREATMENT: asTreatment(ctx.treatment),
+    EVIDENCE: formatEvidence(evidence),
+    DATE: new Date().toISOString().slice(0, 10),
+  });
+
+  return {
+    entryId: entry.id,
+    system,
+    user: `${userBlock}${entry.task}`,
+    allowedIds: evidence.map((e) => e.id),
+  };
+}
+
 // ---- Orchestration ----
 
 export async function runCoach(
@@ -263,27 +324,13 @@ export async function runCoach(
   if (!providerConfig.apiKeyEnc) throw new CoachUnavailableError();
 
   const apiKey = decryptSecret(providerConfig.apiKeyEnc);
-  const catalog = config.promptCatalog;
-  const ctx = req.context;
 
-  const entry = selectPrompt(catalog, req.message, ctx.questionClass, ctx.promptId);
-
-  const evidence = ctx.evidence ?? [];
-  const allowedIds = evidence.map((e) => e.id);
-
-  const system = catalog.systemPrompt[provider as 'openai' | 'claude'];
-  const userBlock = renderTemplate(catalog.contextBlockTemplate, {
-    USER_QUESTION: req.message,
-    PROFILE: asProfile(ctx.profile),
-    BIOMARKERS: asBiomarkers(ctx.biomarkers),
-    BIO_AGE: asBioAge(ctx.bioAge),
-    HEALTH_SCORE: asHealthScore(ctx.healthScore),
-    WEARABLE: asWearable(ctx.wearable, ctx.metrics),
-    TREATMENT: asTreatment(ctx.treatment),
-    EVIDENCE: formatEvidence(evidence),
-    DATE: new Date().toISOString().slice(0, 10),
-  });
-  const user = `${userBlock}${entry.task}`;
+  const { system, user, allowedIds } = buildCoachPrompt(
+    config.promptCatalog,
+    provider as 'openai' | 'claude',
+    req.message,
+    req.context,
+  );
 
   const raw =
     provider === 'openai'

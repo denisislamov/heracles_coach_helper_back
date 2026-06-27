@@ -148,6 +148,105 @@ adminRouter.post('/admins/:id/reset-password', async (req, res) => {
   res.json(generated ? { ok: true, password } : { ok: true });
 });
 
+// ---- Coach prompt catalogue ----
+
+const ALLOWED_INTENTS = [
+  'levels',
+  'general',
+  'test',
+  'train',
+  'recovery',
+  'workout',
+  'eat',
+  'sleep',
+] as const;
+
+const evidenceQuerySchema = z.object({
+  domains: z.array(z.string()),
+  tags: z.array(z.string()),
+  limit: z.number().int().min(0).max(10),
+});
+
+const promptEntrySchema = z.object({
+  id: z.string().min(1),
+  intent: z.enum(ALLOWED_INTENTS),
+  title: z.string().min(1),
+  keywords: z.array(z.string()),
+  evidence: evidenceQuerySchema,
+  task: z.string().min(1),
+});
+
+const catalogSchema = z
+  .object({
+    version: z.string(),
+    updatedAt: z.string().optional(),
+    description: z.string().optional(),
+    placeholders: z.record(z.string()),
+    outputContract: z.unknown(),
+    systemPrompt: z.object({
+      openai: z.string().min(1),
+      claude: z.string().min(1),
+    }),
+    contextBlockTemplate: z.string().min(1),
+    responseExamples: z.array(z.unknown()).optional(),
+    offTopic: z.object({
+      id: z.string().min(1),
+      intent: z.string().min(1),
+      title: z.string().min(1),
+      description: z.string().optional(),
+      task: z.string().min(1),
+    }),
+    routing: z.object({
+      strategy: z.string(),
+      defaultEvidenceLimit: z.number().int().min(0).max(10),
+    }),
+    prompts: z.array(promptEntrySchema),
+  })
+  .superRefine((cat, ctx) => {
+    // unique prompt ids
+    const ids = cat.prompts.map((p) => p.id);
+    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+    if (dupes.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `duplicate prompt ids: ${[...new Set(dupes)].join(', ')}`,
+        path: ['prompts'],
+      });
+    }
+    // context template must contain every declared placeholder
+    for (const key of Object.keys(cat.placeholders)) {
+      if (!cat.contextBlockTemplate.includes(`{{${key}}}`)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `contextBlockTemplate is missing placeholder {{${key}}}`,
+          path: ['contextBlockTemplate'],
+        });
+      }
+    }
+  });
+
+adminRouter.get('/coach/catalog', async (_req, res) => {
+  const { config } = await store.read();
+  res.json(config.promptCatalog);
+});
+
+adminRouter.put('/coach/catalog', async (req, res) => {
+  const parsed = catalogSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_catalog', details: parsed.error.flatten() });
+    return;
+  }
+  const data = await store.update((d) => {
+    d.config.promptCatalog = {
+      ...parsed.data,
+      updatedAt: new Date().toISOString(),
+    };
+    d.config.updatedAt = new Date().toISOString();
+    d.config.updatedBy = req.admin?.email ?? null;
+  });
+  res.json(data.config.promptCatalog);
+});
+
 adminRouter.post('/admins/:id/disable', async (req, res) => {
   const parsed = disableSchema.safeParse(req.body);
   if (!parsed.success) {

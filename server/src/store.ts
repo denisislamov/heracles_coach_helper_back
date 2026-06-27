@@ -1,7 +1,12 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { COACH_PROMPTS_SEED } from './data/coachPromptsSeed.js';
 import { env } from './env.js';
 import type { CoachPrompts, RemoteConfig, StoreData } from './types.js';
+
+function seedCatalog() {
+  return structuredClone(COACH_PROMPTS_SEED);
+}
 
 export const DEFAULT_PROMPTS: CoachPrompts = {
   system: `You are the Heracles AI health coach. You give concise, practical recovery, sleep,
@@ -31,6 +36,7 @@ export function defaultConfig(): RemoteConfig {
       claude: { apiKeyEnc: null, model: 'claude-3-5-sonnet-latest' },
     },
     prompts: { ...DEFAULT_PROMPTS },
+    promptCatalog: seedCatalog(),
     updatedAt: new Date().toISOString(),
     updatedBy: null,
   };
@@ -65,7 +71,15 @@ async function atomicWrite(data: StoreData): Promise<void> {
 
 async function read(): Promise<StoreData> {
   if (cache) return cache;
-  cache = await readFromDisk();
+  const data = await readFromDisk();
+  // Soft migration: older stores have no prompt catalogue.
+  if (!data.config.promptCatalog) {
+    data.config.promptCatalog = seedCatalog();
+    cache = data;
+    await atomicWrite(data).catch(() => undefined);
+    return cache;
+  }
+  cache = data;
   return cache;
 }
 

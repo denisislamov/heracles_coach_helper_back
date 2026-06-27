@@ -12,13 +12,51 @@ export interface CoachPrompts {
   userTemplate: string;
 }
 
+export interface PromptEvidenceQuery {
+  domains: string[];
+  tags: string[];
+  limit: number;
+}
+
+export interface CoachPromptEntry {
+  id: string;
+  intent: string;
+  title: string;
+  keywords: string[];
+  evidence: PromptEvidenceQuery;
+  task: string;
+}
+
+export interface CoachPromptOffTopic {
+  id: string;
+  intent: string;
+  title: string;
+  description?: string;
+  task: string;
+}
+
+export interface CoachPromptCatalog {
+  version: string;
+  updatedAt: string;
+  description?: string;
+  placeholders: Record<string, string>;
+  outputContract?: unknown; // stored as-is; not sent to the LLM
+  systemPrompt: { openai: string; claude: string };
+  contextBlockTemplate: string;
+  responseExamples?: unknown[];
+  offTopic: CoachPromptOffTopic;
+  routing: { strategy: string; defaultEvidenceLimit: number };
+  prompts: CoachPromptEntry[];
+}
+
 export interface RemoteConfig {
   ai: {
     provider: AiProvider;
     openai: ProviderConfig;
     claude: ProviderConfig;
   };
-  prompts: CoachPrompts;
+  prompts: CoachPrompts; // LEGACY single-prompt — kept for rollback
+  promptCatalog: CoachPromptCatalog; // catalogue from coach-prompts.v1.json
   updatedAt: string;
   updatedBy: string | null;
 }

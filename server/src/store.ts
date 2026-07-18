@@ -8,6 +8,21 @@ function seedCatalog() {
   return structuredClone(COACH_PROMPTS_SEED);
 }
 
+/** Compare dotted numeric catalogue versions (e.g. "1.2" > "1.1"). */
+function isNewerVersion(candidate: string, current: string): boolean {
+  const parse = (v: string) =>
+    v.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const a = parse(candidate);
+  const b = parse(current);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
+
 export const DEFAULT_PROMPTS: CoachPrompts = {
   system: `You are the Heracles AI health coach. You give concise, practical recovery, sleep,
 training and lifestyle guidance for adults on TRT/ED/weight-loss programmes. Ground
@@ -77,6 +92,19 @@ async function read(): Promise<StoreData> {
     data.config.promptCatalog = seedCatalog();
     cache = data;
     await atomicWrite(data).catch(() => undefined);
+    return cache;
+  }
+  // Forward-only catalogue upgrade: when the bundled seed is a newer version
+  // than what is persisted, adopt it so deploys pick up catalogue changes
+  // (e.g. systemPrompt fixes) without a manual PUT /admin/coach/catalog.
+  if (isNewerVersion(COACH_PROMPTS_SEED.version, data.config.promptCatalog.version)) {
+    const from = data.config.promptCatalog.version;
+    data.config.promptCatalog = seedCatalog();
+    cache = data;
+    await atomicWrite(data).catch(() => undefined);
+    console.log(
+      `[store] prompt catalogue upgraded ${from} -> ${COACH_PROMPTS_SEED.version} from bundled seed`,
+    );
     return cache;
   }
   cache = data;

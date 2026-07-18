@@ -17,23 +17,43 @@ export const evidenceItemSchema = z.object({
 
 export const chatTurnSchema = z.object({
   role: z.enum(['user', 'assistant']),
-  content: z.string().min(1).max(2000),
+  content: z.string(),
 });
+
+// Max characters kept per history turn (matches the client-side cap).
+const HISTORY_CONTENT_MAX = 2000;
+// Max number of prior turns fed into the prompt.
+const HISTORY_TURNS_MAX = 12;
+
+/**
+ * Sanitize raw client history into clean, capped turns. Never throws: garbage
+ * items are dropped, oversized content is truncated (not rejected), and the
+ * array is capped to the most recent turns. This runs as a zod preprocess so an
+ * oversized/malformed `history` degrades gracefully instead of 400-ing the
+ * whole request.
+ */
+function sanitizeHistory(raw: unknown): { role: 'user' | 'assistant'; content: string }[] {
+  if (!Array.isArray(raw)) return [];
+  const out: { role: 'user' | 'assistant'; content: string }[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as Record<string, unknown>;
+    const role = rec.role === 'assistant' ? 'assistant' : rec.role === 'user' ? 'user' : null;
+    if (!role) continue;
+    if (typeof rec.content !== 'string') continue;
+    const content = rec.content.trim().slice(0, HISTORY_CONTENT_MAX);
+    if (content.length === 0) continue;
+    out.push({ role, content });
+  }
+  return out.slice(-HISTORY_TURNS_MAX);
+}
 
 export const coachRequestSchema = z.object({
   message: z.string().min(1).max(4000),
-  history: z
-    .array(chatTurnSchema)
-    .default([])
-    // Never trust the client: drop empty/whitespace-only turns, trim content,
-    // and keep only the most recent 12 turns so a malformed or oversized
-    // client can't blow up the prompt.
-    .transform((turns) =>
-      turns
-        .map((t) => ({ role: t.role, content: t.content.trim() }))
-        .filter((t) => t.content.length > 0)
-        .slice(-12),
-    ),
+  // Never trust the client: preprocess drops empty/garbage turns, truncates
+  // oversized content, and keeps only the most recent turns so a malformed or
+  // oversized client can't blow up the prompt or error the request.
+  history: z.preprocess(sanitizeHistory, z.array(chatTurnSchema)).default([]),
   context: z
     .object({
       // routing hints from the app (optional)
@@ -389,6 +409,17 @@ export async function runCoach(
   // Claude requires the array to start with a user turn and alternate; OpenAI
   // is lenient but we still only ever pass sanitized user/assistant turns.
   const claudeHistory = normalizeClaudeHistory(history);
+
+  // One log line per request to confirm history is wired through: on turn 2+
+  // historyTurns should be > 0 and roles should alternate ending in assistant.
+  const assembledHistory = provider === 'openai' ? history : claudeHistory;
+  console.log('[coach] assembled messages', {
+    provider,
+    historyTurns: assembledHistory.length,
+    roles: assembledHistory.map((h) => h.role),
+    // +1 for the current filled context block (user turn).
+    totalMessages: assembledHistory.length + 1,
+  });
 
   const raw =
     provider === 'openai'

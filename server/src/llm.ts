@@ -1,12 +1,23 @@
+export interface ChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface LlmCall {
   apiKey: string;
   model: string;
   system: string;
   user: string;
+  /** Prior conversation turns, oldest → newest, excluding the current turn. */
+  history?: ChatTurn[];
   signal?: AbortSignal;
 }
 
 export async function callOpenAI(opts: LlmCall): Promise<string> {
+  const history = (opts.history ?? []).map((h) => ({
+    role: h.role,
+    content: h.content,
+  }));
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -17,6 +28,7 @@ export async function callOpenAI(opts: LlmCall): Promise<string> {
       model: opts.model,
       messages: [
         { role: 'system', content: opts.system },
+        ...history,
         { role: 'user', content: opts.user },
       ],
       temperature: 0.4,
@@ -37,6 +49,10 @@ export async function callOpenAI(opts: LlmCall): Promise<string> {
 }
 
 export async function callClaude(opts: LlmCall): Promise<string> {
+  const history = (opts.history ?? []).map((h) => ({
+    role: h.role,
+    content: h.content,
+  }));
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -49,7 +65,7 @@ export async function callClaude(opts: LlmCall): Promise<string> {
       max_tokens: 1024,
       temperature: 0.4,
       system: opts.system,
-      messages: [{ role: 'user', content: opts.user }],
+      messages: [...history, { role: 'user', content: opts.user }],
     }),
     signal: opts.signal,
   });

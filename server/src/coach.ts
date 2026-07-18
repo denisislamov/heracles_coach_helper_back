@@ -15,8 +15,25 @@ export const evidenceItemSchema = z.object({
   url: z.string().optional(),
 });
 
+export const chatTurnSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string().min(1).max(2000),
+});
+
 export const coachRequestSchema = z.object({
   message: z.string().min(1).max(4000),
+  history: z
+    .array(chatTurnSchema)
+    .default([])
+    // Never trust the client: drop empty/whitespace-only turns, trim content,
+    // and keep only the most recent 12 turns so a malformed or oversized
+    // client can't blow up the prompt.
+    .transform((turns) =>
+      turns
+        .map((t) => ({ role: t.role, content: t.content.trim() }))
+        .filter((t) => t.content.length > 0)
+        .slice(-12),
+    ),
   context: z
     .object({
       // routing hints from the app (optional)
@@ -38,6 +55,38 @@ export const coachRequestSchema = z.object({
 
 export type CoachRequest = z.infer<typeof coachRequestSchema>;
 export type EvidenceItem = z.infer<typeof evidenceItemSchema>;
+export type ChatTurn = z.infer<typeof chatTurnSchema>;
+
+/**
+ * Anthropic requires the messages array to start with a `user` turn and to
+ * alternate roles. Stored history should already satisfy this, but guard
+ * against a malformed client: drop a leading `assistant` turn, collapse any
+ * accidental consecutive same-role turns (keeping the latest of each run), and
+ * drop a trailing `user` turn — the current question is appended as the final
+ * `user` turn, so history must end on `assistant` to preserve alternation.
+ */
+export function normalizeClaudeHistory(history: ChatTurn[]): ChatTurn[] {
+  const out: ChatTurn[] = [];
+  for (const turn of history) {
+    if (out.length === 0) {
+      // The conversation must open with a user turn.
+      if (turn.role !== 'user') continue;
+      out.push(turn);
+      continue;
+    }
+    const prev = out[out.length - 1]!;
+    if (prev.role === turn.role) {
+      // Consecutive same-role turn: keep the most recent one.
+      out[out.length - 1] = turn;
+    } else {
+      out.push(turn);
+    }
+  }
+  // The current user question is appended after this history, so a trailing
+  // user turn would create two consecutive user turns — drop it.
+  if (out.length && out[out.length - 1]!.role === 'user') out.pop();
+  return out;
+}
 
 export interface CoachReply {
   text: string;
@@ -270,6 +319,7 @@ export interface AssembledPrompt {
   entryId: string;
   system: string;
   user: string;
+  history: ChatTurn[];
   allowedIds: string[];
 }
 
@@ -283,6 +333,7 @@ export function buildCoachPrompt(
   provider: 'openai' | 'claude',
   message: string,
   ctx: CoachRequest['context'],
+  history: ChatTurn[] = [],
 ): AssembledPrompt {
   const entry = selectPrompt(catalog, message, ctx.questionClass, ctx.promptId);
   const evidence = ctx.evidence ?? [];
@@ -304,6 +355,7 @@ export function buildCoachPrompt(
     entryId: entry.id,
     system,
     user: `${userBlock}${entry.task}`,
+    history,
     allowedIds: evidence.map((e) => e.id),
   };
 }
@@ -325,17 +377,37 @@ export async function runCoach(
 
   const apiKey = decryptSecret(providerConfig.apiKeyEnc);
 
-  const { system, user, allowedIds } = buildCoachPrompt(
+  const providerName = provider as 'openai' | 'claude';
+  const { system, user, history, allowedIds } = buildCoachPrompt(
     config.promptCatalog,
-    provider as 'openai' | 'claude',
+    providerName,
     req.message,
     req.context,
+    req.history,
   );
+
+  // Claude requires the array to start with a user turn and alternate; OpenAI
+  // is lenient but we still only ever pass sanitized user/assistant turns.
+  const claudeHistory = normalizeClaudeHistory(history);
 
   const raw =
     provider === 'openai'
-      ? await callOpenAI({ apiKey, model: providerConfig.model, system, user, signal })
-      : await callClaude({ apiKey, model: providerConfig.model, system, user, signal });
+      ? await callOpenAI({
+          apiKey,
+          model: providerConfig.model,
+          system,
+          user,
+          history,
+          signal,
+        })
+      : await callClaude({
+          apiKey,
+          model: providerConfig.model,
+          system,
+          user,
+          history: claudeHistory,
+          signal,
+        });
 
   return parseReply(raw, allowedIds);
 }

@@ -1,6 +1,6 @@
 {
   "name": "heracles-admin-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Heracles admin server: remote config + AI coach proxy with encrypted provider keys.",
   "type": "module",
   "engines": {
